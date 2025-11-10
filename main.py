@@ -513,7 +513,7 @@ class BannedUserMiddleware(BaseMiddleware):
         # Проверка подписки на канал и чат
         try:
             channel_status = await bot.get_chat_member(chat_id="@CNLferz", user_id=user_id)
-            chat_status = await bot.get_chat_member(chat_id="@owdlkdkek", user_id=user_id)
+            chat_status = await bot.get_chat_member(chat_id="@chatFerzister", user_id=user_id)
 
             # Добавлен 'restricted' для учета muted пользователей
             is_channel_subscribed = channel_status.status in ["member", "restricted", "creator", "administrator"]
