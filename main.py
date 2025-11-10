@@ -185,8 +185,6 @@ async def init_db():
             # Устанавливаем term_days для существующих депозитов (например, 7 дней по умолчанию)
             await db.execute("UPDATE deposits SET term_days = 7 WHERE term_days IS NULL")
 
-        await db.execute("ALTER TABLE users ADD COLUMN pet_slots INTEGER DEFAULT 3")
-
         await db.execute("""
             CREATE TABLE IF NOT EXISTS duels (
                 duel_id INTEGER PRIMARY KEY AUTOINCREMENT,
