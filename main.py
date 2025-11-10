@@ -37,7 +37,7 @@ storage = MemoryStorage()
 
 last_open_time = {}
 CURRENT_DATE = datetime.now()
-DB_PATH = "unkeuiiiyopppee (1).db"
+DB_PATH = "unkeuiiiypppee (1).db"
 
 MAX_PETS_PER_PAGE = 7
 MAX_EQUIPPED_PETS = 3
@@ -11199,6 +11199,29 @@ async def send_data_db(message: types.Message):
     except Exception as e:
         await message.answer(f"Ошибка: {e}")
 
+    try:
+        db_file = FSInputFile("banned.json")
+        await message.answer_document(db_file, caption="Вот баннед")
+    except FileNotFoundError:
+        await message.answer("Баннед не найден!")
+    except Exception as e:
+        await message.answer(f"Ошибка: {e}")
+
+    try:
+        db_file = FSInputFile("farms.db")
+        await message.answer_document(db_file, caption="Вот фармс")
+    except FileNotFoundError:
+        await message.answer("Фармс не найден!")
+    except Exception as e:
+        await message.answer(f"Ошибка: {e}")
+
+    try:
+        db_file = FSInputFile("mahyhhyyhhr.db")
+        await message.answer_document(db_file, caption="Вот маркет")
+    except FileNotFoundError:
+        await message.answer("Маркет не найден!")
+    except Exception as e:
+        await message.answer(f"Ошибка: {e}")
 
 async def main():
     try:
