@@ -7884,7 +7884,7 @@ async def cmd_dice(message: types.Message):
         f"└💳 <b>Баланс:</b> <code>{format_balance(new_balance)}</code> GG\n"
     )
 
-    await message.answer(result_text, parse_mode="HTML")
+    await message.reply(result_text, parse_mode="HTML")
 
 
 # Поддержка текстового ввода "кубик"
