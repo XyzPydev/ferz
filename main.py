@@ -185,6 +185,7 @@ async def init_db():
             # Устанавливаем term_days для существующих депозитов (например, 7 дней по умолчанию)
             await db.execute("UPDATE deposits SET term_days = 7 WHERE term_days IS NULL")
 
+
         await db.execute("""
             CREATE TABLE IF NOT EXISTS duels (
                 duel_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1709,12 +1710,7 @@ async def cmd_start_promo(message: types.Message):
 
 @dp.message(Command("promo"))
 async def cmd_promo(message: types.Message, promo_name: str = None):
-    if message.chat.type != "private":
-        await message.reply(
-            "❌ <b>Ошибка:</b> Команда /promo доступна только в личных сообщениях с ботом! Перейдите в приватный чат.",
-            parse_mode="HTML"
-        )
-        return
+
 
     user_id = message.from_user.id
 
@@ -3294,7 +3290,7 @@ last_slots = {}  # user_id: timestamp
 SLOT_SYMBOLS = ['🅱', '🍇', '🍋', '7️⃣']  # Cherry (BAR), Lemon, Grape, 7
 
 @dp.message(Command("slots"))
-@dp.message(lambda m: m.text and m.text.split()[0].lower() in ("слот", "слоты"))
+@dp.message(lambda m: m.text and m.text.split()[0].lower() in ("слот", "слоты","/slot"))
 async def cmd_slots(message: types.Message):
     user_id = message.from_user.id
     now = time.time()
@@ -3399,7 +3395,6 @@ async def cmd_slots(message: types.Message):
     last_slots[user_id] = now
 
 
-
 # ================== ФУНКЦИИ РАБОТЫ С БД ==================
 async def check_db_initialized():
     try:
@@ -3410,6 +3405,7 @@ async def check_db_initialized():
     except aiosqlite.OperationalError:
         print("Ошибка: таблица users не существует после инициализации.")
         return False
+
 
 async def get_user_data(user_id):
     if not await check_db_initialized():
@@ -3429,6 +3425,7 @@ async def get_user_data(user_id):
             }
         return {"coins": 0.0, "fezcoin": 0.0, "pet_slots": 3, "equipped_pets": []}
 
+
 async def get_cases():
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         cursor = await db.execute("""
@@ -3438,12 +3435,14 @@ async def get_cases():
         """)
         return await cursor.fetchall()
 
+
 async def update_case_quantity(case_id, quantity):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         await db.execute("""
             UPDATE cases SET quantity = quantity + ? WHERE case_id = ?
         """, (quantity, case_id))
         await db.commit()
+
 
 async def get_user_cases(user_id):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
@@ -3456,6 +3455,7 @@ async def get_user_cases(user_id):
         """, (user_id,))
         return await cursor.fetchall()
 
+
 async def get_user_pets(user_id):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         cursor = await db.execute("""
@@ -3467,6 +3467,7 @@ async def get_user_pets(user_id):
         """, (user_id,))
         return await cursor.fetchall()
 
+
 async def get_market_pets():
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         cursor = await db.execute("""
@@ -3476,6 +3477,7 @@ async def get_market_pets():
             ORDER BY mp.market_id
         """)
         return await cursor.fetchall()
+
 
 async def remove_user_case(user_id, case_id):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
@@ -3490,6 +3492,7 @@ async def remove_user_case(user_id, case_id):
         """, (user_id, case_id))
         await db.commit()
 
+
 async def add_user_case(user_id, case_id, quantity=1):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         await db.execute("""
@@ -3503,6 +3506,7 @@ async def add_user_case(user_id, case_id, quantity=1):
         """, (quantity, case_id))
         await db.commit()
 
+
 async def add_user_pet(user_id, pet_id, quantity=1):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         await db.execute("""
@@ -3512,6 +3516,7 @@ async def add_user_pet(user_id, pet_id, quantity=1):
             DO UPDATE SET quantity = quantity + excluded.quantity
         """, (user_id, pet_id, quantity))
         await db.commit()
+
 
 async def update_user_fezcoin(user_id, amount):
     if not await check_db_initialized():
@@ -3523,6 +3528,7 @@ async def update_user_fezcoin(user_id, amount):
         """, (amount, user_id))
         await db.commit()
 
+
 async def update_user_pet_slots(user_id):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""
@@ -3530,12 +3536,14 @@ async def update_user_pet_slots(user_id):
         """, (user_id,))
         await db.commit()
 
+
 async def update_equipped_pets(user_id, equipped_pets):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""
             UPDATE users SET equipped_pets = ? WHERE user_id = ?
         """, (str(equipped_pets), user_id))
         await db.commit()
+
 
 async def add_market_pet(user_id: int, pet_id: int, quantity: int, price: int):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
@@ -3598,6 +3606,7 @@ async def add_market_pet(user_id: int, pet_id: int, quantity: int, price: int):
             await db.rollback()
             raise
 
+
 async def remove_user_pet(user_id, pet_id, quantity=1):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         await db.execute("""
@@ -3611,6 +3620,7 @@ async def remove_user_pet(user_id, pet_id, quantity=1):
         """, (user_id, pet_id))
         await db.commit()
 
+
 async def remove_market_pet(market_id):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         await db.execute("""
@@ -3618,19 +3628,101 @@ async def remove_market_pet(market_id):
         """, (market_id,))
         await db.commit()
 
+
 # Состояния FSM
 class BuyCaseState(StatesGroup):
     waiting_quantity = State()
 
+
 class SellImmediateState(StatesGroup):
     waiting_quantity = State()
+
 
 class SellPetState(StatesGroup):
     waiting_price = State()
     waiting_quantity = State()
 
+
 class EquipPetState(StatesGroup):
     waiting_quantity = State()
+
+
+# ================== НОВЫЕ ФУНКЦИИ ПАРСИНГА ==================
+from typing import Optional, Union
+from decimal import Decimal
+import re
+
+
+def _to_decimal_safe(val):
+    try:
+        return Decimal(str(val))
+    except Exception:
+        return None
+
+
+def parse_bet_input(arg: str, user_money: Optional[Union[int, float, str, Decimal]] = None) -> int:
+    if arg is None:
+        return -1
+
+    s = str(arg).strip().lower()
+    s = s.replace(" ", "").replace("_", "")
+
+    if s in ("все", "всё", "all"):
+        um = _to_decimal_safe(user_money)
+        if um is None:
+            return -1
+        try:
+            return int(um)
+        except Exception:
+            return -1
+
+    m = re.fullmatch(r'([0-9]+(?:[.,][0-9]{1,2})?)([kк]*)', s)
+    if not m:
+        return -1
+
+    num_str, k_suffix = m.groups()
+    num_str = num_str.replace(',', '.')
+    try:
+        num = Decimal(num_str)
+    except Exception:
+        return -1
+
+    multiplier = Decimal(1000) ** len(k_suffix)
+    result = num * multiplier
+
+    try:
+        return int(result)
+    except Exception:
+        return -1
+
+
+# Дополнительная функция для парсинга Fezcoin (float, с поддержкой decimals)
+def parse_fez_price(arg: str) -> float:
+    if arg is None:
+        return -1.0
+
+    s = str(arg).strip().lower()
+    s = s.replace(" ", "").replace("_", "")
+
+    m = re.fullmatch(r'([0-9]+(?:[.,][0-9]{1,2})?)([kк]*)', s)
+    if not m:
+        return -1.0
+
+    num_str, k_suffix = m.groups()
+    num_str = num_str.replace(',', '.')
+    try:
+        num = Decimal(num_str)
+    except Exception:
+        return -1.0
+
+    multiplier = Decimal(1000) ** len(k_suffix)
+    result = num * multiplier
+
+    try:
+        return float(result)
+    except Exception:
+        return -1.0
+
 
 # ================== КОМАНДЫ ==================
 @dp.message(Command("case"))
@@ -3656,8 +3748,10 @@ async def cmd_case(message: Message):
         return
     await show_case(message, user_id, cases, 0)
 
+
 from aiogram.types import InputMediaPhoto, FSInputFile
 from pathlib import Path
+
 
 async def show_case(message_or_callback, user_id, cases, index):
     case_id, case_name, price, quantity = cases[index]
@@ -3668,7 +3762,9 @@ async def show_case(message_or_callback, user_id, cases, index):
     chances = "50% (GG), 40% (Fezcoin), 10% (Питомец), 1% (+1 место)" if not is_halloween else "50% (GG), 40% (Fezcoin), 10% (Питомец)"
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="Купить" if quantity > 0 else "", callback_data=f"case_buy_{case_id}") if quantity > 0 else InlineKeyboardButton(text="", callback_data="empty")
+            InlineKeyboardButton(text="Купить" if quantity > 0 else "",
+                                 callback_data=f"case_buy_{case_id}") if quantity > 0 else InlineKeyboardButton(text="",
+                                                                                                                callback_data="empty")
         ],
         [
             InlineKeyboardButton(text="<", callback_data=f"case_prev_{index}"),
@@ -3723,6 +3819,8 @@ async def show_case(message_or_callback, user_id, cases, index):
             reply_markup=keyboard,
             parse_mode="HTML"
         )
+
+
 @dp.callback_query(F.data.startswith(("case_prev_", "case_next_")))
 async def case_navigate(callback: CallbackQuery):
     user_id = callback.from_user.id
@@ -3736,6 +3834,7 @@ async def case_navigate(callback: CallbackQuery):
     elif "next" in callback.data:
         index = (index + 1) % len(cases)
     await show_case(callback, user_id, cases, index)
+
 
 @dp.callback_query(F.data.startswith("case_buy_"))
 async def case_buy(callback: CallbackQuery, state: FSMContext):
@@ -3796,6 +3895,7 @@ async def case_buy(callback: CallbackQuery, state: FSMContext):
 
     await state.set_state(BuyCaseState.waiting_quantity)
 
+
 @dp.message(BuyCaseState.waiting_quantity)
 async def process_buy_quantity(message: Message, state: FSMContext):
     user_id = message.from_user.id
@@ -3835,11 +3935,13 @@ async def process_buy_quantity(message: Message, state: FSMContext):
     )
     await state.clear()
 
+
 @dp.callback_query(F.data == "case_back")
 async def case_back(callback: CallbackQuery):
     user_id = callback.from_user.id
     cases = await get_cases()
     await show_case(callback, user_id, cases, 0)
+
 
 @dp.message(Command("inv"))
 @dp.message(lambda m: m.text and m.text.lower() in ["инв", "инвентарь"])
@@ -3875,6 +3977,7 @@ async def cmd_inv(message: Message, bot: Bot):
         total_pages = (len(user_pets) + MAX_PETS_PER_PAGE - 1) // MAX_PETS_PER_PAGE
         await show_inv_pets(message, user_pets, 0, total_pages, bot)
 
+
 async def show_inv_case(message_or_callback, user_id, cases, index, bot):
     case_id, case_name, quantity = cases[index]
     is_halloween = case_id == 2
@@ -3883,11 +3986,15 @@ async def show_inv_case(message_or_callback, user_id, cases, index, bot):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔓 Открыть кейс", callback_data=f"case_open_{case_id}")],
         [
-            InlineKeyboardButton(text="⬅️", callback_data=f"inv_case_prev_{index}") if index > 0 else InlineKeyboardButton(text="", callback_data="empty"),
+            InlineKeyboardButton(text="⬅️",
+                                 callback_data=f"inv_case_prev_{index}") if index > 0 else InlineKeyboardButton(text="",
+                                                                                                                callback_data="empty"),
             InlineKeyboardButton(text=f"[{index + 1}/{len(cases)}]", callback_data="empty"),
-            InlineKeyboardButton(text="➡️", callback_data=f"inv_case_next_{index}") if index < len(cases) - 1 else InlineKeyboardButton(text="", callback_data="empty")
+            InlineKeyboardButton(text="➡️", callback_data=f"inv_case_next_{index}") if index < len(
+                cases) - 1 else InlineKeyboardButton(text="", callback_data="empty")
         ],
-        [InlineKeyboardButton(text="🐾 Питомцы", callback_data="inv_pets") if await get_user_pets(user_id) else InlineKeyboardButton(text="", callback_data="empty")]
+        [InlineKeyboardButton(text="🐾 Питомцы", callback_data="inv_pets") if await get_user_pets(
+            user_id) else InlineKeyboardButton(text="", callback_data="empty")]
     ])
     text = (
         "<b>🎒 Инвентарь: Кейсы</b>\n"
@@ -3912,10 +4019,6 @@ async def show_inv_case(message_or_callback, user_id, cases, index, bot):
         await message_or_callback.reply(text, reply_markup=keyboard, parse_mode="HTML")
 
 
-
-
-
-
 @dp.callback_query(F.data.startswith("case_open_"))
 async def inv_open_case(callback: CallbackQuery):
     try:
@@ -3924,7 +4027,8 @@ async def inv_open_case(callback: CallbackQuery):
         await callback.message.edit_text(
             "<b>❌ ОШИБКА ❌</b>\n"
             "<blockquote>Некорректный формат запроса! 😿</blockquote>",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_cases")]]),
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_cases")]]),
             parse_mode="HTML"
         )
         await callback.answer()
@@ -3955,7 +4059,8 @@ async def inv_open_case(callback: CallbackQuery):
             await callback.message.edit_text(
                 "<b>❌ ОШИБКА ❌</b>\n"
                 "<blockquote>У тебя нет этого кейса! 😿</blockquote>",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_cases")]]),
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_cases")]]),
                 parse_mode="HTML"
             )
             await callback.answer()
@@ -3993,7 +4098,8 @@ async def inv_open_case(callback: CallbackQuery):
                 await bomb_message.edit_text(
                     "<b>❌ ОШИБКА ❌</b>\n"
                     "<blockquote>В этом кейсе нет питомцев! 😿</blockquote>",
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_cases")]]),
+                    reply_markup=InlineKeyboardMarkup(
+                        inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_cases")]]),
                     parse_mode="HTML"
                 )
                 await callback.answer()
@@ -4003,7 +4109,8 @@ async def inv_open_case(callback: CallbackQuery):
             weights = []
             for pet in pets_list:
                 pet_id, pet_name, pet_rarity, pet_bonus, pet_type = pet
-                weight = {'Common': 0.5, 'Rare': 0.3, 'Epic': 0.15, 'Legendary': 0.04, 'Secret': 0.01}.get(pet_rarity, 0.01)
+                weight = {'Common': 0.5, 'Rare': 0.3, 'Epic': 0.15, 'Legendary': 0.04, 'Secret': 0.01}.get(pet_rarity,
+                                                                                                           0.01)
                 pet_options.append(pet)
                 weights.append(weight)
             pet = random.choices(pet_options, weights=weights, k=1)[0]
@@ -4017,26 +4124,26 @@ async def inv_open_case(callback: CallbackQuery):
         result_text += (
             f"<blockquote>🐾 Питомец: <b>{pet_name}</b>\n"
             f"💛 Редкость: <code>{pet_rarity}</code>\n"
-            f"💰 Бонус к ферме: <code>{pet_bonus*100:.0f}%</code> 💸</blockquote>"
+            f"💰 Бонус к ферме: <code>{pet_bonus * 100:.0f}%</code> 💸</blockquote>"
         )
     elif reward == "GG":
         if is_halloween:
             gg_ranges = [
-                (100000000, 500000000, 0.40), # 100M - 500M
-                (500000000, 800000000, 0.35), # 500M - 800M
-                (800000000, 1300000000, 0.25), # 800M - 1.3B
-                (1300000000, 4200000000, 0.05), # 1.3B - 4.2B
-                (4200000000, 8000000000, 0.01), # 4.2B - 8B
-                (100000000000, 100000000000, 0.001) # 100B
+                (100000000, 500000000, 0.40),  # 100M - 500M
+                (500000000, 800000000, 0.35),  # 500M - 800M
+                (800000000, 1300000000, 0.25),  # 800M - 1.3B
+                (1300000000, 4200000000, 0.05),  # 1.3B - 4.2B
+                (4200000000, 8000000000, 0.01),  # 4.2B - 8B
+                (100000000000, 100000000000, 0.001)  # 100B
             ]
         else:
             gg_ranges = [
-                (50000000, 250000000, 0.40), # 50M - 250M
-                (250000000, 400000000, 0.35), # 250M - 400M
-                (400000000, 650000000, 0.25), # 400M - 650M
-                (650000000, 2100000000, 0.05), # 650M - 2.1B
-                (2100000000, 4000000000, 0.01), # 2.1B - 4B
-                (50000000000, 50000000000, 0.001) # 50B
+                (50000000, 250000000, 0.40),  # 50M - 250M
+                (250000000, 400000000, 0.35),  # 250M - 400M
+                (400000000, 650000000, 0.25),  # 400M - 650M
+                (650000000, 2100000000, 0.05),  # 650M - 2.1B
+                (2100000000, 4000000000, 0.01),  # 2.1B - 4B
+                (50000000000, 50000000000, 0.001)  # 50B
             ]
         gg_range = random.choices(gg_ranges, weights=[r[2] for r in gg_ranges], k=1)[0]
         gg_amount = random.randint(gg_range[0], gg_range[1])
@@ -4049,21 +4156,21 @@ async def inv_open_case(callback: CallbackQuery):
     elif reward == "Fezcoin":
         if is_halloween:
             fezcoin_ranges = [
-                (2000, 10000, 0.40), # 2000 - 10000
-                (10000, 20000, 0.35), # 10000 - 20000
-                (20000, 30000, 0.25), # 20000 - 30000
-                (30000, 100000, 0.05), # 30000 - 100000
-                (100000, 200000, 0.001), # 100000 - 200000
-                (1000000, 1000000, 0.0001) # 1M
+                (2000, 10000, 0.40),  # 2000 - 10000
+                (10000, 20000, 0.35),  # 10000 - 20000
+                (20000, 30000, 0.25),  # 20000 - 30000
+                (30000, 100000, 0.05),  # 30000 - 100000
+                (100000, 200000, 0.001),  # 100000 - 200000
+                (1000000, 1000000, 0.0001)  # 1M
             ]
         else:
             fezcoin_ranges = [
-                (1000, 5000, 0.40), # 1000 - 5000
-                (5000, 10000, 0.35), # 5000 - 10000
-                (10000, 15000, 0.25), # 10000 - 15000
-                (15000, 50000, 0.05), # 15000 - 50000
-                (50000, 100000, 0.001), # 50000 - 100000
-                (1000000, 1000000, 0.0001) # 1M
+                (1000, 5000, 0.40),  # 1000 - 5000
+                (5000, 10000, 0.35),  # 5000 - 10000
+                (10000, 15000, 0.25),  # 10000 - 15000
+                (15000, 50000, 0.05),  # 15000 - 50000
+                (50000, 100000, 0.001),  # 50000 - 100000
+                (1000000, 1000000, 0.0001)  # 1M
             ]
         fezcoin_range = random.choices(fezcoin_ranges, weights=[r[2] for r in fezcoin_ranges], k=1)[0]
         fezcoin_amount = random.randint(fezcoin_range[0], fezcoin_range[1])
@@ -4104,11 +4211,13 @@ async def inv_open_case(callback: CallbackQuery):
     )
     await callback.answer()
 
+
 async def show_inv_pets(message_or_callback, pets, page, total_pages, bot):
     start_idx = page * MAX_PETS_PER_PAGE
     end_idx = min((page + 1) * MAX_PETS_PER_PAGE, len(pets))
     page_pets = pets[start_idx:end_idx]
-    user_id = message_or_callback.from_user.id if isinstance(message_or_callback, CallbackQuery) else message_or_callback.from_user.id
+    user_id = message_or_callback.from_user.id if isinstance(message_or_callback,
+                                                             CallbackQuery) else message_or_callback.from_user.id
     user_data = await get_user_data(user_id)
     equipped_pets = user_data['equipped_pets']
     equipped_count = len(equipped_pets)
@@ -4119,19 +4228,20 @@ async def show_inv_pets(message_or_callback, pets, page, total_pages, bot):
         equipped_text = f"✅ [{equipped_quantity} шт]" if is_equipped and equipped_quantity > 0 else ""
         pet_list.append(f"• {pet_name} ({quantity} шт, <b>{rarity}</b>) <i>{equipped_text}</i>")
     text = (
-        "<b>🎒 Инвентарь: Питомцы</b>\n\n"
-        f"<blockquote><i>🐾 Питомцы — ваши верные помощники на ферме! Они увеличивают доход Fezcoin. Вы можете применить до {MAX_EQUIPPED_PETS} питомцев.</i></blockquote>\n\n"
-        f"<b>🟢 Применено:</b> <code>{equipped_count}/{MAX_EQUIPPED_PETS}</code> мест\n"
-        f"<b>📄 Страница:</b> {page + 1}/{total_pages}\n\n"
-        "<b>🐾 Список питомцев:</b>\n" +
-        "\n".join(pet_list) +
-        "\n\n<i>💡 Выберите питомца, чтобы узнать подробности или выставить на продажу!</i>"
+            "<b>🎒 Инвентарь: Питомцы</b>\n\n"
+            f"<blockquote><i>🐾 Питомцы — ваши верные помощники на ферме! Они увеличивают доход Fezcoin. Вы можете применить до {MAX_EQUIPPED_PETS} питомцев.</i></blockquote>\n\n"
+            f"<b>🟢 Применено:</b> <code>{equipped_count}/{MAX_EQUIPPED_PETS}</code> мест\n"
+            f"<b>📄 Страница:</b> {page + 1}/{total_pages}\n\n"
+            "<b>🐾 Список питомцев:</b>\n" +
+            "\n".join(pet_list) +
+            "\n\n<i>💡 Выберите питомца, чтобы узнать подробности или выставить на продажу!</i>"
     )
     keyboard = []
     for pet_id, pet_name, quantity, rarity in page_pets:
         is_equipped = pet_id in equipped_pets
         equipped_mark = " ✅" if is_equipped else ""
-        keyboard.append([InlineKeyboardButton(text=f"{pet_name} ({quantity} шт){equipped_mark}", callback_data=f"pet_info_{pet_id}")])
+        keyboard.append([InlineKeyboardButton(text=f"{pet_name} ({quantity} шт){equipped_mark}",
+                                              callback_data=f"pet_info_{pet_id}")])
     nav_buttons = []
     if page > 0:
         nav_buttons.append(InlineKeyboardButton(text="⬅️", callback_data=f"pets_prev_{page}"))
@@ -4150,7 +4260,9 @@ async def show_inv_pets(message_or_callback, pets, page, total_pages, bot):
             parse_mode="HTML"
         )
     else:
-        await message_or_callback.reply(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML")
+        await message_or_callback.reply(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+                                        parse_mode="HTML")
+
 
 async def show_pet_info(callback: types.CallbackQuery, pet_id):
     user_id = callback.from_user.id
@@ -4171,7 +4283,8 @@ async def show_pet_info(callback: types.CallbackQuery, pet_id):
         bonus, case_id = row[0], row[1]
 
         # Проверяем, есть ли уже лот для этого питомца
-        cursor = await db.execute("SELECT quantity FROM market_pets WHERE seller_id = ? AND pet_id = ?", (user_id, pet_id))
+        cursor = await db.execute("SELECT quantity FROM market_pets WHERE seller_id = ? AND pet_id = ?",
+                                  (user_id, pet_id))
         existing_lot = await cursor.fetchone()
 
     # Определяем, является ли питомец хеллоуинским
@@ -4193,20 +4306,26 @@ async def show_pet_info(callback: types.CallbackQuery, pet_id):
 
     # Формируем клавиатуру для отображения
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="❌ Снять с продажи" if existing_lot else "🏪 Выставить на маркет" if can_sell_on_market else "⚠️ Нельзя выставить", callback_data=f"{'remove_lot' if existing_lot else 'sell_pet'}_{user_id}_{pet_id}" if can_sell_on_market else "disabled")],
-        [InlineKeyboardButton(text=f"💰 Продать сразу ({format_balance(sell_price)} GG)", callback_data=f"sell_immediate_{pet_id}")],
-        [InlineKeyboardButton(text=f"🌟 Применить" if not is_equipped else "❌ Снять", callback_data=f"equip_pet_{pet_id}")],
+        [InlineKeyboardButton(
+            text="❌ Снять с продажи" if existing_lot else "🏪 Выставить на маркет" if can_sell_on_market else "⚠️ Нельзя выставить",
+            callback_data=f"{'remove_lot' if existing_lot else 'sell_pet'}_{user_id}_{pet_id}" if can_sell_on_market else "disabled")],
+        [InlineKeyboardButton(text=f"💰 Продать сразу ({format_balance(sell_price)} GG)",
+                              callback_data=f"sell_immediate_{pet_id}")],
+        [InlineKeyboardButton(text=f"🌟 Применить" if not is_equipped else "❌ Снять",
+                              callback_data=f"equip_pet_{pet_id}")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]
     ])
     text = (
         f"<b>🐾 Питомец: {pet_name}</b>\n\n"
         f"<b>🔹 Редкость:</b> <code>{rarity}</code>\n"
         f"<b>🟢 Количество:</b> <code>{quantity}</code> шт.\n"
-        f"<b>📈 Бонус на ферме:</b> +{bonus*100:.1f}% Fezcoin\n"  # Бонус остаётся в Fezcoin, как в оригинале
+        f"<b>📈 Бонус на ферме:</b> +{bonus * 100:.1f}% Fezcoin\n"  # Бонус остаётся в Fezcoin, как в оригинале
         f"<b>🌟 Статус:</b> {'Применён' if is_equipped else 'Не применён'}\n\n"
         "<i>💡 Вы можете применить питомца для увеличения дохода на ферме, продать его сразу или выставить на маркет (если это секретный, легендарный или сезонный питомец из хеллоуинского кейса)!</i>"
     )
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+
+
 @dp.callback_query(lambda c: c.data.startswith("remove_lot_"))
 async def remove_lot_cb(callback: types.CallbackQuery):
     try:
@@ -4215,7 +4334,8 @@ async def remove_lot_cb(callback: types.CallbackQuery):
     except (ValueError, IndexError):
         await callback.message.edit_text(
             "<b>❌ Ошибка</b>\n<blockquote>Некорректный формат запроса! 😿</blockquote>",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
             parse_mode="HTML"
         )
         await callback.answer()
@@ -4233,7 +4353,8 @@ async def remove_lot_cb(callback: types.CallbackQuery):
                 if not row:
                     await callback.message.edit_text(
                         "<b>❌ Ошибка</b>\n<blockquote>Лот не найден! 😿</blockquote>",
-                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
+                        reply_markup=InlineKeyboardMarkup(
+                            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
                         parse_mode="HTML"
                     )
                     await callback.answer()
@@ -4267,18 +4388,21 @@ async def remove_lot_cb(callback: types.CallbackQuery):
                 )
                 await callback.message.edit_text(
                     text,
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
+                    reply_markup=InlineKeyboardMarkup(
+                        inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
                     parse_mode="HTML"
                 )
             except Exception as e:
                 await db.rollback()  # Откатываем транзакцию при ошибке
                 await callback.message.edit_text(
                     "<b>❌ Ошибка</b>\n<blockquote>Не удалось снять лот! Попробуйте позже. 😿</blockquote>",
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
+                    reply_markup=InlineKeyboardMarkup(
+                        inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
                     parse_mode="HTML"
                 )
                 await callback.answer(str(e), show_alert=True)
     await callback.answer()
+
 
 # Вспомогательная функция для получения имени питомца
 async def get_pet_name(pet_id):
@@ -4286,6 +4410,7 @@ async def get_pet_name(pet_id):
         cur = await db.execute("SELECT name FROM pets WHERE pet_id = ?", (pet_id,))
         row = await cur.fetchone()
         return row[0] if row else "Неизвестный питомец"
+
 
 @dp.callback_query(F.data.startswith(("inv_case_prev_", "inv_case_next_")))
 async def inv_case_navigate(callback: CallbackQuery):
@@ -4300,7 +4425,6 @@ async def inv_case_navigate(callback: CallbackQuery):
     elif "next" in callback.data and index < len(cases) - 1:
         index += 1
     await show_inv_case(callback, user_id, cases, index, callback.message.bot)
-
 
 
 @dp.callback_query(F.data.in_(["case_redirect", "inv_cases", "inv_pets", "inv_pets_back"]))
@@ -4320,7 +4444,9 @@ async def inventory_navigate(callback: CallbackQuery, bot: Bot):
                 "➡️ Используйте команду <code>/case</code> для покупки.\n"
                 "<i>💡 Совет: Кейсы содержат питомцев, Fezcoin, GG и редкие бонусы!</i>"
             )
-            await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🛒 Купить кейсы", callback_data="case_redirect")]]), parse_mode="HTML")
+            await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="🛒 Купить кейсы", callback_data="case_redirect")]]),
+                                             parse_mode="HTML")
     elif callback.data in ["inv_pets", "inv_pets_back"]:
         pets = await get_user_pets(user_id)
         if pets:
@@ -4334,8 +4460,11 @@ async def inventory_navigate(callback: CallbackQuery, bot: Bot):
                 "➡️ Используйте команду <code>/case</code> для покупки кейсов.\n"
                 "<i>💡 Питомцы увеличивают доход на ферме!</i>"
             )
-            await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📦 Купить кейсы", callback_data="case_redirect")]]), parse_mode="HTML")
+            await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="📦 Купить кейсы", callback_data="case_redirect")]]),
+                                             parse_mode="HTML")
     await callback.answer()
+
 
 @dp.callback_query(F.data.startswith(("pets_prev_", "pets_next_")))
 async def pets_navigate(callback: CallbackQuery):
@@ -4352,10 +4481,12 @@ async def pets_navigate(callback: CallbackQuery):
         page += 1
     await show_inv_pets(callback, pets, page, total_pages, callback.message.bot)
 
+
 @dp.callback_query(F.data.startswith("pet_info_"))
 async def pet_info(callback: CallbackQuery):
     pet_id = int(callback.data.split("_")[-1])
     await show_pet_info(callback, pet_id)
+
 
 @dp.callback_query(F.data.startswith("sell_pet_"))
 async def sell_pet(callback: types.CallbackQuery, state: FSMContext):
@@ -4384,21 +4515,19 @@ async def sell_pet(callback: types.CallbackQuery, state: FSMContext):
         f"<blockquote><i>💰 Укажите цену за 1 питомца для выставления на маркет.</i></blockquote>\n"
         f"<b>🐾 Питомец:</b> {pet_name} ({rarity})\n"
         f"<b>🟢 Доступно:</b> <code>{pet[2]}</code> шт.\n\n"
-        "<i>💡 Введите цену в Fezcoin (например, 100 или 250.5).</i>"
+        "<i>💡 Введите цену в GG (например, 100 или 250.5).</i>"
     )
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     await state.set_state(SellPetState.waiting_price)
+
 
 @dp.message(SellPetState.waiting_price)
 async def process_sell_price(message: Message, state: FSMContext):
     user_id = message.from_user.id
     data = await state.get_data()
     pet_id, pet_name, quantity = data['pet_id'], data['pet_name'], data['quantity']
-    try:
-        price = float(message.text)
-        if price <= 0:
-            raise ValueError
-    except ValueError:
+    price = parse_fez_price(message.text)
+    if price <= 0:
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="⬅️ Назад к питомцам", callback_data="inv_pets_back")]
         ])
@@ -4419,12 +4548,13 @@ async def process_sell_price(message: Message, state: FSMContext):
         "<b>🏪 Продажа питомца</b>\n\n"
         f"<blockquote><i>🔢 Укажите количество питомцев для продажи на маркет.</i></blockquote>\n"
         f"<b>🐾 Питомец:</b> {pet_name}\n"
-        f"<b>💰 Цена за 1 шт.:</b> <code>{price:.2f}</code> Fezcoin\n"
+        f"<b>💰 Цена за 1 шт.:</b> <code>{price:.2f}</code> GG\n"
         f"<b>🟢 Доступно:</b> <code>{quantity}</code> шт.\n\n"
-        "<i>💡 Введите количество (от 1 до {quantity}).</i>"
+        f"<i>💡 Введите количество (от 1 до {quantity}).</i>"
     )
     await message.reply(text, reply_markup=keyboard, parse_mode="HTML")
     await state.set_state(SellPetState.waiting_quantity)
+
 
 @dp.message(SellPetState.waiting_quantity)
 async def process_sell_quantity(message: Message, state: FSMContext):
@@ -4447,7 +4577,7 @@ async def process_sell_quantity(message: Message, state: FSMContext):
         await state.clear()
         return
 
-    result = await add_market_pet(user_id, pet_id, amount, price)
+    result = await add_market_pet(user_id, pet_id, amount, int(price * 100))  # Цена в копейках
     if "error" in result:
         if result["error"] == "existing_lot":
             text = (
@@ -4468,7 +4598,8 @@ async def process_sell_quantity(message: Message, state: FSMContext):
             )
         await message.reply(
             text,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
             parse_mode="HTML"
         )
         await state.clear()
@@ -4495,12 +4626,13 @@ async def process_sell_quantity(message: Message, state: FSMContext):
         f"<blockquote><i>✅ Успешно выставлено на маркет!</i></blockquote>\n"
         f"<b>🐾 Питомец:</b> {pet_name}\n"
         f"<b>🔢 Количество:</b> <code>{amount}</code> шт.\n"
-        f"<b>💰 Цена за 1 шт.:</b> <code>{price:.2f}</code> Fezcoin\n"
-        f"<b>💸 Общая сумма:</b> <code>{price * amount:.2f}</code> Fezcoin\n"
+        f"<b>💰 Цена за 1 шт.:</b> <code>{price:.2f}</code> GG\n"
+        f"<b>💸 Общая сумма:</b> <code>{price * amount:.2f}</code> GG\n"
         f"{adjustment_message}\n"
         "<i>💡 Питомец теперь доступен для покупки на маркете!</i>"
     )
     await message.reply(text, parse_mode="HTML")
+
 
 @dp.callback_query(F.data.startswith("sell_immediate_"))
 async def sell_immediate_start(callback: types.CallbackQuery, state: FSMContext):
@@ -4522,12 +4654,12 @@ async def sell_immediate_start(callback: types.CallbackQuery, state: FSMContext)
 
     # Устанавливаем базовую цену в GG
     base_price = {
-        "Common": 600000000,    # 600кк
-        "Rare": 1200000000,      # 1.2ккк
-        "Epic": 2000000000,     # 2ккк
-        "Legendary": 10000000000, # 10ккк
-        "Secret": 200000000000  # 200ккк
-    }[rarity] * multiplier
+                     "Common": 600000000,  # 600кк
+                     "Rare": 1200000000,  # 1.2ккк
+                     "Epic": 2000000000,  # 2ккк
+                     "Legendary": 10000000000,  # 10ккк
+                     "Secret": 200000000000  # 200ккк
+                 }[rarity] * multiplier
 
     sell_price = base_price * 0.5  # 50% от базовой цены
 
@@ -4542,26 +4674,25 @@ async def sell_immediate_start(callback: types.CallbackQuery, state: FSMContext)
         f"<b>🟢 Доступно:</b> <code>{quantity}</code> шт.\n"
         f"<b>💰 Цена за 1 шт.:</b> <code>{format_balance(sell_price)} GG</code>\n"
         f"<b>💸 Общая стоимость (при продаже всех):</b> <code>{format_balance(sell_price * quantity)} GG</code>\n\n"
-        "<i>💡 Введите количество (от 1 до {quantity}).</i>"
+        f"<i>💡 Введите количество (от 1 до {quantity}).</i>"
     )
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     await state.set_state(SellImmediateState.waiting_quantity)
+
 
 async def update_user_coins(user_id: int, amount: float):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE users SET coins = coins + ? WHERE user_id = ?", (amount, user_id))
         await db.commit()
 
+
 @dp.message(SellImmediateState.waiting_quantity)
 async def process_sell_immediate_quantity(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     data = await state.get_data()
     pet_id, pet_name, quantity, sell_price = data['pet_id'], data['pet_name'], data['quantity'], data['sell_price']
-    try:
-        amount = int(message.text)
-        if amount <= 0 or amount > quantity:
-            raise ValueError
-    except ValueError:
+    amount = parse_bet_input(message.text)
+    if amount <= 0 or amount > quantity:
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]
         ])
@@ -4608,7 +4739,10 @@ async def process_sell_immediate_quantity(message: types.Message, state: FSMCont
         f"{adjustment_message}\n"
         "<i>💡 Вернитесь к питомцам для дальнейших действий!</i>"
     )
-    await message.reply(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад к питомцам", callback_data="inv_pets_back")]]), parse_mode="HTML")
+    await message.reply(text, reply_markup=InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад к питомцам", callback_data="inv_pets_back")]]),
+                        parse_mode="HTML")
+
 
 @dp.callback_query(F.data.startswith("equip_pet_"))
 async def equip_pet(callback: CallbackQuery, state: FSMContext):
@@ -4633,7 +4767,9 @@ async def equip_pet(callback: CallbackQuery, state: FSMContext):
             f"<b>🟢 Свободно мест:</b> <code>{len(equipped_pets)}/{MAX_EQUIPPED_PETS}</code>\n"
             "<i>💡 Теперь вы можете применить других питомцев!</i>"
         )
-        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад к питомцам", callback_data="inv_pets_back")]]), parse_mode="HTML")
+        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад к питомцам", callback_data="inv_pets_back")]]),
+                                         parse_mode="HTML")
     else:
         if equipped_count >= MAX_EQUIPPED_PETS:
             await callback.answer(f"❌ Максимум {MAX_EQUIPPED_PETS} питомцев могут быть применены!", show_alert=True)
@@ -4652,6 +4788,7 @@ async def equip_pet(callback: CallbackQuery, state: FSMContext):
         )
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
         await state.set_state(EquipPetState.waiting_quantity)
+
 
 @dp.message(EquipPetState.waiting_quantity)
 async def process_equip_quantity(message: Message, state: FSMContext):
@@ -4683,17 +4820,22 @@ async def process_equip_quantity(message: Message, state: FSMContext):
         f"<b>🟢 Применено:</b> <code>{len(equipped_pets)}/{MAX_EQUIPPED_PETS}</code> мест\n\n"
         "<i>💡 Теперь ваш доход на ферме увеличен!</i>"
     )
-    await message.reply(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад к питомцам", callback_data="inv_pets_back")]]), parse_mode="HTML")
+    await message.reply(text, reply_markup=InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад к питомцам", callback_data="inv_pets_back")]]),
+                        parse_mode="HTML")
+
 
 # Константы
 TYPES_PER_PAGE = 7
 LOTS_PER_PAGE = 7
 MOSCOW = pytz.timezone('Europe/Moscow')
 
+
 class MarketState(StatesGroup):
     BUY_QTY = State()
     SELL_QTY = State()
     SELL_PRICE = State()
+
 
 async def _types_list(page: int) -> tuple[list, int]:
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
@@ -4722,6 +4864,7 @@ async def _types_list(page: int) -> tuple[list, int]:
         """)
         total_lots = (await cur.fetchone())[0]
     return rows, total_types, total_lots
+
 
 async def _lots_buy(animal_type: str, page: int) -> tuple[list, int]:
     async with aiosqlite.connect(MARKET_DB_PATH) as db_market:
@@ -4757,6 +4900,7 @@ async def _lots_buy(animal_type: str, page: int) -> tuple[list, int]:
 
     return result, total
 
+
 async def _lots_sell(animal_type: str, page: int) -> tuple[list, int]:
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         cur = await db.execute("""
@@ -4778,6 +4922,7 @@ async def _lots_sell(animal_type: str, page: int) -> tuple[list, int]:
         total = (await cur.fetchone())[0]
     return rows, total
 
+
 async def _my_lots(user_id: int, page: int) -> tuple[list, int]:
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         cur = await db.execute("""
@@ -4793,14 +4938,15 @@ async def _my_lots(user_id: int, page: int) -> tuple[list, int]:
         total = (await cur.fetchone())[0]
     return rows, total
 
+
 async def show_main(event: Union[types.Message, types.CallbackQuery], page: int = 0):
     types_list, total_types, total_lots = await _types_list(page)
     kb = [[InlineKeyboardButton(text=f"🐾 {t[0]} ({t[1]} пр.)", callback_data=f"m_type_{t[0]}_0")] for t in types_list]
     nav = []
     if page > 0:
-        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"m_page_{page-1}"))
+        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"m_page_{page - 1}"))
     if (page + 1) * TYPES_PER_PAGE < total_types:
-        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"m_page_{page+1}"))
+        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"m_page_{page + 1}"))
     if nav:
         kb.append(nav)
     kb.append([InlineKeyboardButton(text="📋 Мои лоты", callback_data="m_my_0")])
@@ -4820,6 +4966,7 @@ async def show_main(event: Union[types.Message, types.CallbackQuery], page: int 
     else:
         await event.message.edit_text(text, reply_markup=markup, parse_mode="HTML")
 
+
 @dp.message(Command("market"))
 @dp.message(lambda m: m.text and m.text.lower() in ["маркет", "market"])
 async def cmd_market(m: types.Message):
@@ -4832,11 +4979,13 @@ async def cmd_market(m: types.Message):
         return
     await show_main(m)
 
+
 @dp.callback_query(lambda c: c.data.startswith("m_page_"))
 async def page_cb(c: types.CallbackQuery):
     page = int(c.data.split("_")[2])
     await show_main(c, page)
     await c.answer()
+
 
 @dp.callback_query(lambda c: c.data.startswith("m_type_"))
 async def type_cb(c: types.CallbackQuery):
@@ -4845,12 +4994,13 @@ async def type_cb(c: types.CallbackQuery):
     kb = []
     for lot in lots:
         lid, _, qty, price, username, _ = lot
-        kb.append([InlineKeyboardButton(text=f"{username}, {format_balance(price)} GG", callback_data=f"m_selbuy_{lid}")])
+        kb.append(
+            [InlineKeyboardButton(text=f"{username}, {format_balance(price)} GG", callback_data=f"m_selbuy_{lid}")])
     nav = []
     if page > 0:
-        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"m_type_{animal_type}_{page-1}"))
+        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"m_type_{animal_type}_{page - 1}"))
     if (page + 1) * LOTS_PER_PAGE < total:
-        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"m_type_{animal_type}_{page+1}"))
+        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"m_type_{animal_type}_{page + 1}"))
     if nav:
         kb.append(nav)
     kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")])
@@ -4866,6 +5016,7 @@ async def type_cb(c: types.CallbackQuery):
     )
     await c.message.edit_text(text, reply_markup=markup, parse_mode="HTML")
     await c.answer()
+
 
 @dp.callback_query(lambda c: c.data.startswith("m_my_"))
 async def my_lots_cb(c: types.CallbackQuery):
@@ -4889,14 +5040,15 @@ async def my_lots_cb(c: types.CallbackQuery):
         text += "</blockquote>\n<i>Сними лот, чтобы вернуть питомцев в инвентарь!</i> ✨"
     nav = []
     if page > 0:
-        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"m_my_{page-1}"))
+        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"m_my_{page - 1}"))
     if (page + 1) * LOTS_PER_PAGE < total:
-        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"m_my_{page+1}"))
+        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"m_my_{page + 1}"))
     if nav:
         kb.append(nav)
     kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")])
     await c.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb), parse_mode="HTML")
     await c.answer()
+
 
 @dp.callback_query(lambda c: c.data.startswith("m_rm_"))
 async def remove_cb(c: types.CallbackQuery):
@@ -4921,10 +5073,12 @@ async def remove_cb(c: types.CallbackQuery):
     )
     await c.message.edit_text(
         text,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
         parse_mode="HTML"
     )
     await c.answer()
+
 
 @dp.callback_query(lambda c: c.data.startswith("m_selbuy_"))
 async def select_buy_cb(c: types.CallbackQuery, state: FSMContext):
@@ -4933,7 +5087,8 @@ async def select_buy_cb(c: types.CallbackQuery, state: FSMContext):
     except (ValueError, IndexError):
         await c.message.edit_text(
             "<b>❌ Ошибка</b>\n<blockquote>Некорректный ID лота!</blockquote>",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
             parse_mode="HTML"
         )
         await c.answer()
@@ -4950,7 +5105,8 @@ async def select_buy_cb(c: types.CallbackQuery, state: FSMContext):
         if not row:
             await c.message.edit_text(
                 "<b>❌ Ошибка</b>\n<blockquote>Лот не найден!</blockquote>",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
                 parse_mode="HTML"
             )
             await c.answer()
@@ -4973,12 +5129,15 @@ async def select_buy_cb(c: types.CallbackQuery, state: FSMContext):
     )
     await c.message.edit_text(
         text,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_0")]]),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_0")]]),
         parse_mode="HTML"
     )
-    await state.update_data(market_id=market_id, pet_id=pet_id, price=price, quantity=quantity, animal_type=animal_type, pet_name=pet_name, seller_id=seller_id)
+    await state.update_data(market_id=market_id, pet_id=pet_id, price=price, quantity=quantity, animal_type=animal_type,
+                            pet_name=pet_name, seller_id=seller_id)
     await state.set_state(MarketState.BUY_QTY)
     await c.answer()
+
 
 @dp.callback_query(lambda c: c.data.startswith("m_buyconfirm_"))
 async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
@@ -4989,21 +5148,23 @@ async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
     await c.message.reply("Введите количество (1-?):", parse_mode="HTML")
     await c.answer()
 
+
 @dp.message(MarketState.BUY_QTY)
 async def buy_qty(m: types.Message, state: FSMContext):
     data = await state.get_data()
-    try:
-        qty = int(m.text)
-        if qty <= 0 or qty > data["quantity"]:
-            raise ValueError
-    except ValueError:
+    user_data = await get_user_data(m.from_user.id)
+    qty = parse_bet_input(m.text, user_data['coins'])
+    if qty <= 0 or qty > data["quantity"]:
         async with aiosqlite.connect(MARKET_DB_PATH) as db:
-            cur = await db.execute("SELECT quantity, price, name FROM market_pets mp JOIN pets p ON p.pet_id = mp.pet_id WHERE market_id=?", (data["market_id"],))
+            cur = await db.execute(
+                "SELECT quantity, price, name FROM market_pets mp JOIN pets p ON p.pet_id = mp.pet_id WHERE market_id=?",
+                (data["market_id"],))
             row = await cur.fetchone()
             if not row:
                 await m.reply(
                     "<b>❌ Ошибка</b>\n<blockquote>Лот не найден!</blockquote>",
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
                     parse_mode="HTML"
                 )
                 await state.clear()
@@ -5019,7 +5180,8 @@ async def buy_qty(m: types.Message, state: FSMContext):
         )
         await m.reply(
             text,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
             parse_mode="HTML"
         )
         await state.clear()  # Очищаем состояние после некорректного ввода
@@ -5042,6 +5204,7 @@ async def buy_qty(m: types.Message, state: FSMContext):
     )
     await state.update_data(qty=qty)
 
+
 @dp.callback_query(lambda c: c.data.startswith("m_confirmbuy_"))
 async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
     try:
@@ -5049,7 +5212,8 @@ async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
     except (ValueError, IndexError):
         await c.message.edit_text(
             "<b>❌ Ошибка</b>\n<blockquote>Некорректный формат запроса! 😿</blockquote>",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
             parse_mode="HTML"
         )
         await c.answer()
@@ -5068,7 +5232,8 @@ async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
         if not row:
             await c.message.edit_text(
                 "<b>❌ Ошибка</b>\n<blockquote>Лот не найден!</blockquote>",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
                 parse_mode="HTML"
             )
             await c.answer()
@@ -5079,7 +5244,8 @@ async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
         if seller_id == user_id:
             await c.message.edit_text(
                 "<b>❌ Ошибка</b>\n<blockquote>Вы не можете купить свой собственный лот! 😿</blockquote>",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
                 parse_mode="HTML"
             )
             await c.answer()
@@ -5088,7 +5254,8 @@ async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
         if qty > available_qty:
             await c.message.edit_text(
                 "<b>❌ Ошибка</b>\n<blockquote>Недостаточно питомцев в лоте!</blockquote>",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
                 parse_mode="HTML"
             )
             await c.answer()
@@ -5102,7 +5269,8 @@ async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
             if user_coins < total_cost:
                 await c.message.edit_text(
                     "<b>❌ Ошибка</b>\n<blockquote>Недостаточно GG для покупки! 😿</blockquote>",
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
                     parse_mode="HTML"
                 )
                 await c.answer()
@@ -5153,11 +5321,13 @@ async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
     )
     await c.message.edit_text(
         text,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
         parse_mode="HTML"
     )
     await state.clear()
     await c.answer()
+
 
 @dp.callback_query(lambda c: c.data.startswith("m_sell_"))
 async def sell_cb(c: types.CallbackQuery, state: FSMContext):
@@ -5171,7 +5341,8 @@ async def sell_cb(c: types.CallbackQuery, state: FSMContext):
         print(f"Error parsing callback_data: {c.data}, error: {e}")
         await c.message.edit_text(
             "<b>❌ Ошибка</b>\n<blockquote>Некорректный формат запроса! 😿</blockquote>",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
             parse_mode="HTML"
         )
         await c.answer()
@@ -5190,7 +5361,8 @@ async def sell_cb(c: types.CallbackQuery, state: FSMContext):
         if have < 1:
             await c.message.edit_text(
                 "<b>❌ НЕДОСТАТОЧНО ПИТОМЦЕВ ❌</b>\n<blockquote>У тебя нет питомцев этого вида.</blockquote>",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_{page}")]]),
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_{page}")]]),
                 parse_mode="HTML"
             )
             await c.answer()
@@ -5207,21 +5379,20 @@ async def sell_cb(c: types.CallbackQuery, state: FSMContext):
     )
     await c.message.edit_text(
         text,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_{page}")]]),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_{page}")]]),
         parse_mode="HTML"
     )
     await state.update_data(animal_type=animal_type, page=page, max_qty=have)
     await state.set_state(MarketState.SELL_QTY)
     await c.answer()
 
+
 @dp.message(MarketState.SELL_QTY)
 async def sell_qty(m: types.Message, state: FSMContext):
     data = await state.get_data()
-    try:
-        qty = int(m.text)
-        if not 1 <= qty <= data["max_qty"]:
-            raise ValueError
-    except ValueError:
+    qty = parse_bet_input(m.text)
+    if not 1 <= qty <= data["max_qty"]:
         async with aiosqlite.connect(MARKET_DB_PATH) as db:
             cur = await db.execute("SELECT name FROM pets WHERE type=? LIMIT 1", (data["animal_type"],))
             row = await cur.fetchone()
@@ -5235,7 +5406,8 @@ async def sell_qty(m: types.Message, state: FSMContext):
         )
         await m.reply(
             text,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_{data['page']}")]]),
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_{data['page']}")]]),
             parse_mode="HTML"
         )
         await state.clear()  # Очищаем состояние после некорректного ввода
@@ -5249,11 +5421,93 @@ async def sell_qty(m: types.Message, state: FSMContext):
     )
     await m.reply(
         text,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_{data['page']}")]]),
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_{data['page']}")]]),
         parse_mode="HTML"
     )
     await state.update_data(qty=qty)
     await state.set_state(MarketState.SELL_PRICE)
+
+
+@dp.message(MarketState.SELL_PRICE)
+async def sell_price(m: types.Message, state: FSMContext):
+    data = await state.get_data()
+    animal_type = data['animal_type']
+    qty = data['qty']
+    page = data['page']
+
+    price = parse_bet_input(m.text)
+    if price <= 0:
+        # Ошибка ввода
+        async with aiosqlite.connect(MARKET_DB_PATH) as db:
+            cur = await db.execute("SELECT name FROM pets WHERE type=? LIMIT 1", (animal_type,))
+            row = await cur.fetchone()
+            name = row[0] if row else animal_type
+        text = (
+            "<b>🏪 Ошибка цены</b>\n\n"
+            f"<blockquote><i>❌ Укажите корректную цену (целое число > 0 GG).</i></blockquote>\n"
+            f"<b>🐾 Тип:</b> {name}\n"
+            f"<b>🔢 Количество:</b> <code>{qty}</code> шт.\n"
+            "<i>💡 Пример: 1000000 (1M GG)</i>"
+        )
+        await m.reply(
+            text,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_{page}")]]),
+            parse_mode="HTML"
+        )
+        return  # Не очищаем state — пусть попробует снова
+
+    uid = m.from_user.id
+    async with aiosqlite.connect(MARKET_DB_PATH) as db:
+        # Получи pet_id по типу (предполагаем 1 pet_id на тип; если несколько — доработай)
+        cur = await db.execute("SELECT pet_id FROM pets WHERE type=? LIMIT 1", (animal_type,))
+        row = await cur.fetchone()
+        if not row:
+            await m.reply("❌ Тип питомца не найден!")
+            await state.clear()
+            return
+        pet_id = row[0]
+
+        # Проверь наличие питомцев
+        cur = await db.execute("SELECT quantity FROM user_pets WHERE user_id=? AND pet_id=?", (uid, pet_id))
+        have_row = await cur.fetchone()
+        have = have_row[0] if have_row else 0
+        if have < qty:
+            await m.reply(f"❌ Недостаточно питомцев! У тебя {have}, нужно {qty}.")
+            await state.clear()
+            return
+
+        # Уменьши в user_pets
+        await db.execute("UPDATE user_pets SET quantity = quantity - ? WHERE user_id=? AND pet_id=?",
+                         (qty, uid, pet_id))
+        await db.execute("DELETE FROM user_pets WHERE quantity <= 0")
+
+        # Добавь в market_pets (GG — int!)
+        await db.execute("""
+            INSERT INTO market_pets (seller_id, pet_id, quantity, price, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (uid, pet_id, qty, price, datetime.now(MOSCOW).isoformat()))
+        await db.commit()
+
+    # Успех
+    async with aiosqlite.connect(MARKET_DB_PATH) as db:
+        cur = await db.execute("SELECT name FROM pets WHERE pet_id=?", (pet_id,))
+        name = (await cur.fetchone())[0]
+    text = (
+        f"<b>🎉 Лот выставлен на маркет!</b>\n\n"
+        f"<blockquote><i>✅ {name} × <code>{qty}</code> шт. за <code>{format_balance(price)} GG</code>/шт.</i></blockquote>\n"
+        f"<b>💸 Итого: <code>{format_balance(qty * price)} GG</code></b>\n\n"
+        "<i>💡 Теперь жди покупателей! Проверь /market.</i>"
+    )
+    await m.reply(
+        text,
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_{page}")]]),
+        parse_mode="HTML"
+    )
+    await state.clear()
+
 
 @dp.message(SellPetState.waiting_quantity)
 async def process_sell_quantity(message: Message, state: FSMContext):
@@ -5297,7 +5551,8 @@ async def process_sell_quantity(message: Message, state: FSMContext):
             )
         await message.reply(
             text,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
             parse_mode="HTML"
         )
         await state.clear()
@@ -5331,6 +5586,7 @@ async def process_sell_quantity(message: Message, state: FSMContext):
     )
     await message.reply(text, parse_mode="HTML")
 
+
 @dp.callback_query(lambda c: c.data.startswith("m_confirmsell_"))
 async def confirm_sell(c: types.CallbackQuery):
     pid, qty, price = map(int, c.data.split("_")[2:])
@@ -5346,7 +5602,8 @@ async def confirm_sell(c: types.CallbackQuery):
         if have < qty:
             await c.message.edit_text(
                 "<b>❌ НЕДОСТАТОЧНО ПИТОМЦЕВ ❌</b>\n<blockquote>У тебя нет столько питомцев этого вида.</blockquote>",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
                 parse_mode="HTML"
             )
             await c.answer()
@@ -5367,15 +5624,18 @@ async def confirm_sell(c: types.CallbackQuery):
     await c.message.edit_text(
         f"<b>🎉 ЛОТ ВЫСТАВЛЕН 🎉</b>\n"
         f"<blockquote>{name} × <code>{qty}</code> за <code>{format_balance(price)} GG</code></blockquote>",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_0")]]),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_0")]]),
         parse_mode="HTML"
     )
     await c.answer()
+
 
 @dp.callback_query(lambda c: c.data == "m_back")
 async def back_cb(c: types.CallbackQuery):
     await show_main(c)
     await c.answer()
+
 
 # Админ-команда /addcase
 @dp.message(Command("addcase"))
@@ -5407,6 +5667,7 @@ async def cmd_addcase(message: Message):
         f"✅ Добавлено <code>{quantity}</code> шт. к кейсу ID <code>{case_id}</code> ({case[1]}).",
         parse_mode="HTML"
     )
+
 
 # ================== РЕГИСТРАЦИЯ ХЕНДЛЕРОВ ==================
 dp.message.register(cmd_case, Command("case"))
@@ -5448,13 +5709,9 @@ dp.callback_query.register(buy_confirm_cb, lambda c: c.data.startswith("m_confir
 dp.callback_query.register(sell_cb, lambda c: c.data.startswith("m_sell_"))
 dp.callback_query.register(remove_lot_cb, lambda c: c.data.startswith("remove_lot_"))
 dp.message.register(sell_qty, MarketState.SELL_QTY)
-dp.message.register(process_sell_quantity, MarketState.SELL_PRICE)
+dp.message.register(sell_price, MarketState.SELL_PRICE)
 dp.callback_query.register(confirm_sell, lambda c: c.data.startswith("m_confirmsell_"))
 dp.callback_query.register(back_cb, lambda c: c.data == "m_back")
-
-
-
-
 
 
 # Команда /ver (верификация пользователя)
@@ -8767,7 +9024,277 @@ async def fish_cancel_callback(call: types.CallbackQuery):
     await call.answer()
 
 # ============================== MINER GAME ==============================
+# ============================== MINER GAME ==============================
+# Configuration and constants for the Miner game
+RIGGED_LOSE_CHANCE_BASE = 11  # ~9.09% шанс срабатывания фальшивой мины
+MINER_MULTIPLIERS = {
+    3: [1.00, 1.07, 1.22, 1.4, 1.63, 1.89, 2.25, 2.63, 3.15, 3.82, 4.7, 5.87, 7.47, 9.71, 12.94, 17.79, 25.41, 38.11,
+        60.91, 106.69, 213.38, 533.45, 2133.8],
+    4: [1.00, 1.13, 1.35, 1.63, 1.99, 2.45, 3.06, 3.87, 4.97, 6.49, 8.65, 11.79, 16.5, 23.83, 35.74, 56.16, 93.6,
+        168.48, 336.96, 786.24, 2358.72, 11793.6],
+    5: [1.00, 1.18, 1.49, 1.9, 2.45, 3.21, 4.28, 5.8, 8.03, 11.37, 16.53, 24.79, 38.56, 62.66, 107.41, 196.91, 393.82,
+        886.09, 2362.9, 8270.15, 49620.9],
+    6: [1.00, 1.23, 1.59, 2.07, 2.73, 3.65, 4.96, 6.84, 9.6, 13.83, 20.37, 30.96, 48.85, 80.6, 139.03, 258.77, 553.08,
+        1327.39, 3716.69, 14866.76, 89199.2],
+    7: [1.00, 1.28, 1.69, 2.25, 3.02, 4.13, 5.73, 8.06, 11.53, 16.93, 25.56, 39.61, 63.38, 106.47, 187.39, 360.24,
+        802.76, 2006.9, 6019.5, 24077.99],
+    8: [1.00, 1.33, 1.79, 2.44, 3.33, 4.63, 6.56, 9.45, 13.85, 20.79, 31.98, 50.63, 82.78, 142.17, 260.98, 532.39,
+        1277.74, 3833.22, 15332.88],
+    9: [1.00, 1.38, 1.9, 2.64, 3.66, 5.16, 7.42, 10.92, 16.38, 25.07, 39.36, 63.78, 106.3, 185.83, 351.82, 760.54,
+        1901.34, 5704.02, 22816.08]
+}
+active_miner_games = {}
 
+
+def get_miner_keyboard(game_id: str, opened: list[int], real_mines: list[int], fake_mine: int = None,
+                       fake_triggered: bool = False, exploded=False, last_index=None, finished=False):
+    """Generate the Miner game keyboard (5x5 grid)."""
+    buttons = []
+    mines_to_show = set(real_mines)
+    used = set(opened) | set(real_mines)
+    if exploded:
+        if fake_triggered:
+            mines_to_show.add(fake_mine)
+        elif last_index in real_mines:
+            free = [i for i in range(25) if i not in used]
+            if free:
+                mines_to_show.add(random.choice(free))
+    elif finished:
+        free = [i for i in range(25) if i not in used]
+        if free:
+            mines_to_show.add(random.choice(free))
+    for i in range(25):
+        if i == last_index and exploded:
+            face = "💥"
+        elif i in opened:
+            face = "🌀"
+        elif (exploded or finished) and i in mines_to_show:
+            face = "💣"
+        else:
+            face = "❓"
+        buttons.append(InlineKeyboardButton(text=face, callback_data=f"miner_cell:{game_id}:{i}"))
+    kb = [buttons[i:i + 5] for i in range(0, 25, 5)]
+    if not exploded and not finished:
+        if opened:
+            kb.append([InlineKeyboardButton(text="💰 Забрать приз", callback_data=f"miner_take:{game_id}")])
+        else:
+            kb.append([InlineKeyboardButton(text="🚫 Отмена", callback_data=f"miner_cancel:{game_id}")])
+    return InlineKeyboardMarkup(inline_keyboard=kb)
+
+
+@dp.message(Command("miner"))
+async def cmd_miner(message: types.Message):
+    """Start a new Miner game with specified bet and optional mine count."""
+    args = message.text.split()
+    if len(args) < 2:
+        await message.reply(
+            "💣 <b>Минёр: Испытай удачу!</b> 💣\n\n"
+            "<b>📖 Как играть:</b>\n"
+            " • Используйте: <code>/miner ставка [кол-во мин]</code> или <code>минер ставка [кол-во мин]</code>\n"
+            " • Кол-во мин: <b>3–9</b> (по умолчанию <b>3</b>)\n"
+            " • Минимальная ставка: <code>10 монет</code>\n\n"
+            "<b>🎮 Правила:</b>\n"
+            " • Открывайте клетки, избегая 💣 <i>мин</i>.\n"
+            " • Каждая безопасная клетка увеличивает <b>множитель выигрыша</b>.\n"
+            " • Забирайте приз в любой момент или продолжайте рисковать!\n"
+            " • Больше мин — <i>выше множители, но и риск больше</i>!\n\n",
+            parse_mode="HTML"
+        )
+        return
+    user_id = message.from_user.id
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("SELECT coins FROM users WHERE user_id = ?", (user_id,))
+        row = await cursor.fetchone()
+        if not row:
+            await message.reply("❌ <b>Ошибка:</b> Вы не зарегистрированы! 😢 Введите <code>/start</code>.",
+                                parse_mode="HTML")
+            return
+        coins = row[0]
+    # Validate bet
+    bet = parse_bet_input(args[1], coins)
+    if bet < 10:
+        await message.reply("⚠️ <b>Минимальная ставка</b> — <code>10 монет</code>! 💰", parse_mode="HTML")
+        return
+    if coins < bet:
+        await message.reply("❌ <b>Недостаточно монет!</b> 😢 Проверьте баланс и попробуйте снова.", parse_mode="HTML")
+        return
+    # Validate number of mines (default to 3)
+    num_mines = 3
+    if len(args) >= 3:
+        try:
+            num_mines = int(args[2])
+            if num_mines not in MINER_MULTIPLIERS or num_mines < 3 or num_mines > 9:
+                await message.reply("❌ <b>Ошибка:</b> Количество мин должно быть <b>от 3 до 9</b>! ⚠️",
+                                    parse_mode="HTML")
+                return
+        except ValueError:
+            await message.reply("❌ <b>Ошибка:</b> Укажите <i>число мин</i> от 3 до 9! 🔢", parse_mode="HTML")
+            return
+    # === ЛОГИКА: (n-1) реальных + 1 фальшивая ===
+    real_mines_count = num_mines - 1
+    all_positions = list(range(25))
+    real_mines = random.sample(all_positions, real_mines_count)
+    fake_mine = random.choice([p for p in all_positions if p not in real_mines])
+    # Initialize game
+    game_id = str(random.randint(100000, 999999))
+    game = {
+        "user_id": user_id,
+        "bet": bet,
+        "opened": [],
+        "real_mines": real_mines,
+        "fake_mine": fake_mine,
+        "num_mines": num_mines,
+        "mult": 1.0,
+        "fake_triggered": False,
+        "exploded": False,
+        "finished": False
+    }
+    active_miner_games[game_id] = game
+    # Deduct bet
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE users SET coins = coins - ? WHERE user_id = ?", (bet, user_id))
+        await db.commit()
+    # Send game start message
+    kb = get_miner_keyboard(game_id, [], real_mines, fake_mine)
+    await message.reply(
+        f"💣 <b>Минёр: Игра началась!</b> 💣\n\n"
+        f"💰 <b>Ставка:</b> <code>{format_balance(bet)}</code>\n"
+        f"💣 <b>Мин:</b> <b>{num_mines}</b>\n"
+        f"🎯 <i>Открывайте клетки и избегайте мин!</i> 🚀\n"
+        f"<b>Текущий множитель:</b> <code>1.00x</code>",
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+
+
+@dp.message(lambda m: m.text and m.text.lower().startswith("минер"))
+async def txt_miner(message: types.Message):
+    await cmd_miner(message)
+
+
+@dp.callback_query(lambda c: c.data.startswith("miner_cell"))
+async def miner_cell(call: types.CallbackQuery):
+    """Handle cell opening in Miner game."""
+    _, game_id, idx = call.data.split(":")
+    idx = int(idx)
+    game = active_miner_games.get(game_id)
+    if not game or game["user_id"] != call.from_user.id:
+        await call.answer("❌ Игра не найдена! 😢", show_alert=True)
+        return
+    if game["exploded"] or game["finished"]:
+        await call.answer("❌ Игра завершена! 🎮", show_alert=True)
+        return
+    if idx in game["opened"]:
+        await call.answer("🌀 Эта клетка уже открыта! 🔁")
+        return
+    bet = game["bet"]
+    num_mines = game["num_mines"]
+    # === 1. РЕАЛЬНАЯ МИНА ===
+    if idx in game["real_mines"]:
+        game["exploded"] = True
+        kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], False, True, idx)
+        await call.message.edit_text(
+            f"💥 <b>БАМ! Вы попали на мину!</b> 😢\n"
+            f"💰 <b>Ставка:</b> <code>{format_balance(bet)}</code>\n"
+            f"<i>Игра окончена. Попробуйте снова!</i> 🔁",
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
+        del active_miner_games[game_id]
+        await call.answer()
+        return
+
+    # === 2. ФАЛЬШИВАЯ МИНА (9%) ===
+    if idx == game["fake_mine"]:
+        if random.randint(1, RIGGED_LOSE_CHANCE_BASE) == 1:
+            game["fake_triggered"] = True
+            game["exploded"] = True
+            kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], True, True, idx)
+            await call.message.edit_text(
+                f"💥 <b>Ох, не повезло!</b> 😈 Клетка оказалась миной!\n"
+                f"💰 <b>Ставка:</b> <code>{format_balance(bet)}</code>\n"
+                f"<i>Игра завершена. Удача отвернулась!</i> 😢",
+                reply_markup=kb,
+                parse_mode="HTML"
+            )
+            del active_miner_games[game_id]
+            await call.answer()
+            return
+
+    # === 3. БЕЗОПАСНАЯ КЛЕТКА ===
+    game["opened"].append(idx)
+    game["mult"] = MINER_MULTIPLIERS[num_mines][len(game["opened"])]
+    possible = int(bet * game["mult"])
+    kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"])
+    await call.message.edit_text(
+        f"✅ <b>Минёр: Успех!</b> 🎉\n\n"
+        f"🌀 <b>Открыто клеток:</b> <b>{len(game['opened'])}</b>\n"
+        f"💣 <b>Мин:</b> <b>{num_mines}</b>\n"
+        f"📈 <b>Множитель:</b> <code>{game['mult']:.2f}x</code>\n"
+        f"💰 <b>Возможный выигрыш:</b> <code>{format_balance(possible)}</code>\n"
+        f"<i>Продолжайте или забирайте приз!</i> 🚀",
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+    await call.answer()
+
+
+@dp.callback_query(lambda c: c.data.startswith("miner_take"))
+async def miner_take(call: types.CallbackQuery):
+    """Handle taking the prize in Miner game."""
+    _, game_id = call.data.split(":")
+    game = active_miner_games.get(game_id)
+    if not game or game["user_id"] != call.from_user.id:
+        await call.answer("❌ Игра не найдена! 😢", show_alert=True)
+        return
+    if game["exploded"] or game["finished"]:
+        await call.answer("❌ Игра завершена! 🎮", show_alert=True)
+        return
+    bet = game["bet"]
+    win = int(bet * game["mult"])
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE users SET coins = coins + ?, win_amount = win_amount + ? WHERE user_id = ?",
+                         (win, win, call.from_user.id))
+        await db.commit()
+    kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], False, False, None, True)
+    await call.message.edit_text(
+        f"🏆 <b>Победа! Вы забрали приз!</b> 🏆\n"
+        f"💰 <b>Выигрыш:</b> <code>{format_balance(win)}</code>\n"
+        f"<i>Отличная игра! Попробуйте снова! 😎</i>",
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+    game["finished"] = True
+    del active_miner_games[game_id]
+    await call.answer()
+
+
+@dp.callback_query(lambda c: c.data.startswith("miner_cancel"))
+async def miner_cancel(call: types.CallbackQuery):
+    """Cancel the Miner game and refund the bet."""
+    _, game_id = call.data.split(":")
+    game = active_miner_games.get(game_id)
+    if not game or game["user_id"] != call.from_user.id:
+        await call.answer("❌ Игра не найдена! 😢", show_alert=True)
+        return
+    if game["exploded"] or game["finished"]:
+        await call.answer("❌ Игра завершена! 🎮", show_alert=True)
+        return
+    bet = game["bet"]
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE users SET coins = coins + ? WHERE user_id = ?", (bet, call.from_user.id))
+        await db.commit()
+    kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], False, False, None, True)
+    await call.message.edit_text(
+        f"🚫 <b>Игра отменена!</b> 😢\n"
+        f"💰 <b>Ставка возвращена:</b> <code>{format_balance(bet)}</code>\n"
+        f"<i>Попробуйте снова с новыми силами! 💪</i>",
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+    game["finished"] = True
+    del active_miner_games[game_id]
+    await call.answer()
 # =================================== БАШНЯ ===========================
 # Предполагается, что DB_PATH и format_balance определены где-то в коде
 # Множители для игры "Башня"
@@ -11221,6 +11748,7 @@ async def send_data_db(message: types.Message):
         await message.answer("Маркет не найден!")
     except Exception as e:
         await message.answer(f"Ошибка: {e}")
+
 
 async def main():
     try:
