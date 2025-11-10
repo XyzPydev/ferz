@@ -33,8 +33,6 @@ bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 storage = MemoryStorage()
 
-
-
 last_open_time = {}
 CURRENT_DATE = datetime.now()
 DB_PATH = "unkeuiiiypppee (1).db"
@@ -44,9 +42,6 @@ MAX_EQUIPPED_PETS = 3
 BANNED_FILE = "banned.json"
 FARM_DB_PATH = "farms.db"
 MARKET_DB_PATH = "mahyhhyyhhr.db"
-
-
-
 
 
 # ================== ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ==================
@@ -185,8 +180,6 @@ async def init_db():
             # Устанавливаем term_days для существующих депозитов (например, 7 дней по умолчанию)
             await db.execute("UPDATE deposits SET term_days = 7 WHERE term_days IS NULL")
 
-        await db.execute("ALTER TABLE users ADD COLUMN pet_slots INTEGER DEFAULT 3")
-
         await db.execute("""
             CREATE TABLE IF NOT EXISTS duels (
                 duel_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -271,7 +264,8 @@ async def init_db():
         await db.execute("CREATE INDEX IF NOT EXISTS idx_duels_opponent_id ON duels(opponent_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_duels_status ON duels(status)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_bosses_active ON bosses(active)")
-        await db.execute("CREATE INDEX IF NOT EXISTS idx_player_boss_damage_user_boss ON player_boss_damage(user_id, boss_id)")
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_player_boss_damage_user_boss ON player_boss_damage(user_id, boss_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_weapons_category ON weapons(category)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_player_weapons_user ON player_weapons(user_id)")
 
@@ -439,6 +433,7 @@ async def init_db():
 
     print("База данных инициализирована")
 
+
 # Middleware для проверки бана и подписки
 
 
@@ -450,6 +445,7 @@ def init_banned_file():
     except FileNotFoundError:
         with open(BANNED_FILE, "w", encoding="utf-8") as f:
             json.dump({"banned": []}, f, ensure_ascii=False, indent=2)
+
 
 # Middleware для проверки бана, подписки и регистрации
 class BannedUserMiddleware(BaseMiddleware):
@@ -529,10 +525,12 @@ class BannedUserMiddleware(BaseMiddleware):
                     inline_keyboard = []
                     if not is_channel_subscribed:
                         text += "📢 <b>Канал:</b> @Fezil_officiaI\n"
-                        inline_keyboard.append([InlineKeyboardButton(text="📢 Подписаться на канал", url="https://t.me/Fezil_officiaI")])
+                        inline_keyboard.append(
+                            [InlineKeyboardButton(text="📢 Подписаться на канал", url="https://t.me/Fezil_officiaI")])
                     if not is_chat_subscribed:
                         text += "💬 <b>Чат:</b> https://t.me/chatFerzister\n"
-                        inline_keyboard.append([InlineKeyboardButton(text="💬 Присоединиться к чату", url="https://t.me/chatFerzister")])
+                        inline_keyboard.append(
+                            [InlineKeyboardButton(text="💬 Присоединиться к чату", url="https://t.me/chatFerzister")])
                     text += "\n👇 Нажмите кнопки ниже, чтобы подписаться!"
                     kb = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
                     await event.reply(text, reply_markup=kb, parse_mode="HTML")
@@ -543,7 +541,8 @@ class BannedUserMiddleware(BaseMiddleware):
                 # Проверка и начисление реферального бонуса (только для Message, т.к. для колбэков не нужно повторять)
                 if isinstance(event, Message):
                     async with aiosqlite.connect(DB_PATH) as db:
-                        cursor = await db.execute("SELECT subscribed, referrer_id FROM users WHERE user_id = ?", (user_id,))
+                        cursor = await db.execute("SELECT subscribed, referrer_id FROM users WHERE user_id = ?",
+                                                  (user_id,))
                         row = await cursor.fetchone()
                         if row and row[0] == 0:  # Не подтверждено ранее
                             await db.execute("UPDATE users SET subscribed = 1 WHERE user_id = ?", (user_id,))
@@ -578,9 +577,11 @@ class BannedUserMiddleware(BaseMiddleware):
 
         return await handler(event, data)
 
+
 # Регистрация middleware
 dp.message.middleware(BannedUserMiddleware())
 dp.callback_query.middleware(BannedUserMiddleware())  #
+
 
 @dp.message(Command("ban"))
 async def cmd_ban(message: types.Message):
@@ -611,6 +612,7 @@ async def cmd_ban(message: types.Message):
             json.dump({"banned": [target_id]}, f, ensure_ascii=False, indent=2)
         await message.reply(f"✅ Пользователь ID {target_id} забанен.", parse_mode="HTML")
 
+
 @dp.message(Command("unban"))
 async def cmd_unban(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -634,6 +636,7 @@ async def cmd_unban(message: types.Message):
     except FileNotFoundError:
         init_banned_file()
         await message.reply(f"❌ Пользователь ID {target_id} не забанен.", parse_mode="HTML")
+
 
 # =================================== РАССЫЛКА ===========================
 @dp.message(Command("rass"))
@@ -700,7 +703,6 @@ async def cmd_rass(message: types.Message):
 
         # Пропускаем забаненных пользователей
         if target_user_id in banned_users:
-
             failed_count += 1
             continue
 
@@ -713,7 +715,6 @@ async def cmd_rass(message: types.Message):
             is_chat_subscribed = chat_status.status in ["member", "creator", "administrator"]
 
             if not (is_channel_subscribed and is_chat_subscribed):
-
                 failed_count += 1
                 continue
         except Exception as e:
@@ -744,6 +745,7 @@ async def cmd_rass(message: types.Message):
             parse_mode="HTML"
         )
 
+
 # =================================== ДОНАТ ===========================
 async def add_donat_bonus(user_id: int, fez: float):
     """Начисляет бонус рефереру (+5% от доната)."""
@@ -752,7 +754,9 @@ async def add_donat_bonus(user_id: int, fez: float):
             referrer = await cursor.fetchone()
             if referrer and referrer[0]:
                 bonus = fez * 0.05
-                await db.execute("UPDATE users SET fezcoin = fezcoin + ?, referral_earnings = referral_earnings + ? WHERE user_id = ?", (bonus, bonus, referrer[0]))
+                await db.execute(
+                    "UPDATE users SET fezcoin = fezcoin + ?, referral_earnings = referral_earnings + ? WHERE user_id = ?",
+                    (bonus, bonus, referrer[0]))
                 await db.commit()
                 try:
                     await bot.send_message(
@@ -762,6 +766,7 @@ async def add_donat_bonus(user_id: int, fez: float):
                     )
                 except Exception as e:
                     print(f"Ошибка отправки бонуса рефереру: {e}")
+
 
 @dp.message(Command("dhh"))
 async def cmd_dhh(message: types.Message):
@@ -844,7 +849,6 @@ async def cmd_dhh(message: types.Message):
     )
 
 
-
 @dp.message(Command("donat"))
 @dp.message(F.text.lower().in_(["донат"]))
 async def cmd_donat(message: types.Message):
@@ -867,7 +871,7 @@ async def cmd_donat(message: types.Message):
     text = (
 
         "💎 <b>Донат в Fezcoin</b> 💎\n\n"
-        
+
         "🎉 <b>Поддержи наш бот и стань частью элиты!</b> 🎉\n\n"
         "💰 <b>Текущий курс:</b> 1 руб = <code>{:.1f}</code> Fezcoin\n"
         "🤝 <b>Торг уместен!</b> Обсуди с админом индивидуальные условия.\n\n"
@@ -949,6 +953,7 @@ USER_PAGES = {}  # Хранение текущей страницы для ка�
 USER_SORT = {}  # Хранение текущей сортировки для каждого пользователя
 USER_FILTER = {}  # Хранение текущего фильтра для каждого пользователя
 
+
 # Инициализация banned.json, если файл отсутствует
 
 def is_user_banned(user_id):
@@ -962,6 +967,7 @@ def is_user_banned(user_id):
     except Exception as e:
         print(f"Ошибка при чтении banned.json: {e}")
         return False
+
 
 # Команда /user
 @dp.message(Command("user"))
@@ -1008,9 +1014,8 @@ async def cmd_user(message: types.Message):
         user_data = await cursor.fetchone()
 
         if not user_data:
-
             await message.reply(f"❌ <b>Пользователь с ID {target_user_id} не найден.</b>", parse_mode="HTML"
-                                 )
+                                )
             return
 
         # Получаем количество рефералов
@@ -1084,8 +1089,8 @@ async def cmd_user(message: types.Message):
         f"📊 <b>Открытые ордера:</b>\n{orders_text}"
     )
 
-
     await message.reply(text, parse_mode="HTML")
+
 
 # Команда /users
 @dp.message(Command("users"))
@@ -1110,11 +1115,11 @@ async def cmd_users(message: types.Message):
 
     users = await fetch_users_data(tg_id)
     if not users:
-
         await message.reply("Пользователей нет в базе.", parse_mode="HTML")
         return
 
     await send_users_page(message, tg_id, users, 0)
+
 
 async def fetch_users_data(tg_id):
     async with aiosqlite.connect(DB_PATH) as db:
@@ -1164,6 +1169,7 @@ async def fetch_users_data(tg_id):
             users = [user for user in users if user[0] in banned_users]
 
         return users
+
 
 async def send_users_page(message, tg_id, users, page):
     start_idx = page * PAGE_SIZE
@@ -1219,13 +1225,13 @@ async def send_users_page(message, tg_id, users, page):
     filter_buttons = [
         [
             InlineKeyboardButton(text=f"Все{' ✅' if current_filter == 'all' else ''}",
-                                callback_data="users_filter:all"),
+                                 callback_data="users_filter:all"),
             InlineKeyboardButton(text=f"Заблокированные{' ✅' if current_filter == 'banned' else ''}",
-                                callback_data="users_filter:banned")
+                                 callback_data="users_filter:banned")
         ],
         [
             InlineKeyboardButton(text=f"С монетами > 1кк{' ✅' if current_filter == 'rich' else ''}",
-                                callback_data="users_filter:rich")
+                                 callback_data="users_filter:rich")
         ]
     ]
     buttons.extend(filter_buttons)
@@ -1233,19 +1239,19 @@ async def send_users_page(message, tg_id, users, page):
     sort_buttons = [
         [
             InlineKeyboardButton(text=f"Монеты (убыв.){' ✅' if current_sort == 'money_high' else ''}",
-                                callback_data="users_sort:money_high"),
+                                 callback_data="users_sort:money_high"),
             InlineKeyboardButton(text=f"Монеты (возр.){' ✅' if current_sort == 'money_low' else ''}",
-                                callback_data="users_sort:money_low")
+                                 callback_data="users_sort:money_low")
         ],
         [
             InlineKeyboardButton(text=f"Активные{' ✅' if current_sort == 'active' else ''}",
-                                callback_data="users_sort:active"),
+                                 callback_data="users_sort:active"),
             InlineKeyboardButton(text=f"Неактивные{' ✅' if current_sort == 'inactive' else ''}",
-                                callback_data="users_sort:inactive")
+                                 callback_data="users_sort:inactive")
         ],
         [
             InlineKeyboardButton(text=f"По умолчанию{' ✅' if current_sort == 'default' else ''}",
-                                callback_data="users_sort:default")
+                                 callback_data="users_sort:default")
         ]
     ]
     buttons.extend(sort_buttons)
@@ -1262,6 +1268,7 @@ async def send_users_page(message, tg_id, users, page):
             await message.reply(text, reply_markup=reply_markup, parse_mode="HTML")
         else:
             raise
+
 
 @dp.callback_query(lambda c: c.data.startswith("users_page:"))
 async def change_users_page(call: types.CallbackQuery):
@@ -1290,6 +1297,7 @@ async def change_users_page(call: types.CallbackQuery):
     USER_PAGES[tg_id] = page
     await send_users_page(call.message, tg_id, users, page)
     await call.answer()
+
 
 @dp.callback_query(lambda c: c.data.startswith("users_filter:"))
 async def change_users_filter(call: types.CallbackQuery):
@@ -1326,6 +1334,7 @@ async def change_users_filter(call: types.CallbackQuery):
     await send_users_page(call.message, tg_id, users, 0)
     await call.answer(f"Фильтр изменен на: {filter_type}")
 
+
 @dp.callback_query(lambda c: c.data.startswith("users_sort:"))
 async def change_users_sort(call: types.CallbackQuery):
     user_id = call.from_user.id
@@ -1360,6 +1369,7 @@ async def change_users_sort(call: types.CallbackQuery):
 
     await send_users_page(call.message, tg_id, users, 0)
     await call.answer(f"Сортировка изменена на: {sort_type}")
+
 
 # =================================== АДМИН: СНЯТИЕ ВЕРИФИКАЦИИ ===========================
 @dp.message(Command("unver"))
@@ -1438,6 +1448,7 @@ async def cmd_unver(message: types.Message):
             parse_mode="HTML"
         )
 
+
 # =================================== АДМИН: СПИСОК КОМАНД ===========================
 @dp.message(Command("s"))
 async def cmd_s(message: types.Message):
@@ -1472,10 +1483,7 @@ async def cmd_s(message: types.Message):
     await message.reply(text, parse_mode="HTML")
 
 
-
-
 # =================================== РЕФЕРАЛЬНАЯ СИСТЕМА ===========================
-
 
 
 # =================================== РЕФЕРАЛЬНАЯ СИСТЕМА ===========================
@@ -1526,6 +1534,7 @@ async def cmd_ref(message: types.Message):
     )
     await message.reply(text, parse_mode="HTML")
 
+
 # =================================== СТАРТ ===========================
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
@@ -1570,7 +1579,6 @@ async def cmd_start(message: types.Message):
         "★ Удачи и приятного использования! ★"
     ).format(name=message.from_user.full_name)
     await message.reply(text, parse_mode="HTML")
-
 
 
 # =================================== ПРОМОКОДЫ ===========================
@@ -2198,12 +2206,15 @@ class CryptoCreateSell(StatesGroup):
     amount = State()
     price = State()
 
+
 class CryptoCreateBuy(StatesGroup):
     amount = State()
     price = State()
 
+
 class CryptoFulfillBuyFromSell(StatesGroup):
     amount = State()
+
 
 class CryptoFulfillSellToBuy(StatesGroup):
     amount = State()
@@ -2240,6 +2251,7 @@ async def return_to_main_menu(message: types.Message, state: FSMContext):
     await message.reply(text, reply_markup=kb, parse_mode="HTML")
     await state.clear()
 
+
 @dp.message(Command("crypto"))
 async def cmd_crypto(message: types.Message, state: FSMContext):
     """Обработчик команды /crypto. Работает только в личных сообщениях."""
@@ -2261,6 +2273,7 @@ async def cmd_crypto(message: types.Message, state: FSMContext):
     state = FSMContext(dp.storage, key=state_key)
     await return_to_main_menu(message, state)
 
+
 @dp.message(lambda m: m.text and m.text.lower() in ["крипта"])
 async def txt_crypto(message: types.Message, state: FSMContext):
     """Обработчик текстового ввода 'крипта'. Работает только в личных сообщениях."""
@@ -2272,6 +2285,7 @@ async def txt_crypto(message: types.Message, state: FSMContext):
         return
 
     await cmd_crypto(message, state)
+
 
 @dp.callback_query(lambda c: c.data == "crypto_create_order")
 async def crypto_create_order(call: types.CallbackQuery, state: FSMContext):
@@ -2292,6 +2306,7 @@ async def crypto_create_order(call: types.CallbackQuery, state: FSMContext):
     await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
 
+
 @dp.callback_query(lambda c: c.data == "crypto_sell_order")
 async def crypto_sell_order(call: types.CallbackQuery, state: FSMContext):
     """Обработчик создания ордера на продажу."""
@@ -2300,7 +2315,9 @@ async def crypto_sell_order(call: types.CallbackQuery, state: FSMContext):
         cursor = await db.execute("SELECT fezcoin FROM users WHERE user_id = ?", (user_id,))
         result = await cursor.fetchone()
         fezcoin = result[0] if result else 0
-        cursor = await db.execute("SELECT COUNT(*) FROM fez_orders WHERE seller_id = ? AND status = 'open' AND order_type = 'sell'", (user_id,))
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM fez_orders WHERE seller_id = ? AND status = 'open' AND order_type = 'sell'",
+            (user_id,))
         active_orders = (await cursor.fetchone())[0]
         if active_orders > 0:
             await call.answer("❌ У вас уже есть активный ордер на продажу!", show_alert=True)
@@ -2335,6 +2352,7 @@ async def crypto_sell_order(call: types.CallbackQuery, state: FSMContext):
     )
     await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
+
 
 @dp.message(CryptoCreateSell.amount)
 async def process_create_sell_amount(message: types.Message, state: FSMContext):
@@ -2375,6 +2393,7 @@ async def process_create_sell_amount(message: types.Message, state: FSMContext):
         "💡 <b>Совет:</b> Установите конкурентную цену, чтобы привлечь покупателей!"
     )
     await message.reply(text, reply_markup=kb, parse_mode="HTML")
+
 
 @dp.message(CryptoCreateSell.price)
 async def process_create_sell_price(message: types.Message, state: FSMContext):
@@ -2422,6 +2441,7 @@ async def process_create_sell_price(message: types.Message, state: FSMContext):
     await message.reply(text, reply_markup=kb, parse_mode="HTML")
     await state.clear()
 
+
 @dp.callback_query(lambda c: c.data == "crypto_buy_order")
 async def crypto_buy_order(call: types.CallbackQuery, state: FSMContext):
     """Обработчик создания ордера на покупку."""
@@ -2430,7 +2450,8 @@ async def crypto_buy_order(call: types.CallbackQuery, state: FSMContext):
         cursor = await db.execute("SELECT coins FROM users WHERE user_id = ?", (user_id,))
         result = await cursor.fetchone()
         coins = result[0] if result else 0
-        cursor = await db.execute("SELECT COUNT(*) FROM fez_orders WHERE buyer_id = ? AND status = 'open' AND order_type = 'buy'", (user_id,))
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM fez_orders WHERE buyer_id = ? AND status = 'open' AND order_type = 'buy'", (user_id,))
         active_orders = (await cursor.fetchone())[0]
         if active_orders > 0:
             await call.answer("❌ У вас уже есть активный ордер на покупку!", show_alert=True)
@@ -2466,6 +2487,7 @@ async def crypto_buy_order(call: types.CallbackQuery, state: FSMContext):
     await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
 
+
 @dp.message(CryptoCreateBuy.amount)
 async def process_create_buy_amount(message: types.Message, state: FSMContext):
     """Обработка ввода количества для ордера на покупку."""
@@ -2499,6 +2521,7 @@ async def process_create_buy_amount(message: types.Message, state: FSMContext):
         "💡 <b>Совет:</b> Проверьте текущие рыночные цены, чтобы установить выгодную цену."
     )
     await message.reply(text, reply_markup=kb, parse_mode="HTML")
+
 
 @dp.message(CryptoCreateBuy.price)
 async def process_create_buy_price(message: types.Message, state: FSMContext):
@@ -2566,6 +2589,7 @@ async def process_create_buy_price(message: types.Message, state: FSMContext):
     await message.reply(text, reply_markup=kb, parse_mode="HTML")
     await state.clear()
 
+
 @dp.callback_query(lambda c: c.data == "crypto_market")
 async def crypto_market(call: types.CallbackQuery):
     """Подменю рынка."""
@@ -2585,6 +2609,7 @@ async def crypto_market(call: types.CallbackQuery):
     )
     await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
+
 
 @dp.callback_query(lambda c: c.data.startswith("crypto_sell_orders_page"))
 async def crypto_sell_orders_page(call: types.CallbackQuery):
@@ -2632,7 +2657,8 @@ async def crypto_sell_orders_page(call: types.CallbackQuery):
             seller_name = f"ID {seller_id}"
         display_name = seller_name[:9] + "..." if len(seller_name) > 9 else seller_name
         button_text = f"{display_name}, {format_balance(price)} GG ({format_balance(amount)} Fez)"
-        kb_rows.append([InlineKeyboardButton(text=button_text, callback_data=f"crypto_buy_from_sell:{order_id}:{page}")])
+        kb_rows.append(
+            [InlineKeyboardButton(text=button_text, callback_data=f"crypto_buy_from_sell:{order_id}:{page}")])
 
     nav_buttons = []
     if page > 0:
@@ -2645,6 +2671,7 @@ async def crypto_sell_orders_page(call: types.CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=kb_rows)
     await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
+
 
 @dp.callback_query(lambda c: c.data.startswith("crypto_buy_orders_page"))
 async def crypto_buy_orders_page(call: types.CallbackQuery):
@@ -2706,6 +2733,7 @@ async def crypto_buy_orders_page(call: types.CallbackQuery):
     await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
 
+
 @dp.callback_query(lambda c: c.data.startswith("crypto_buy_from_sell"))
 async def crypto_buy_from_sell(call: types.CallbackQuery, state: FSMContext):
     """Подтверждение покупки из ордера на продажу."""
@@ -2714,8 +2742,9 @@ async def crypto_buy_from_sell(call: types.CallbackQuery, state: FSMContext):
     page = int(page)
     buyer_id = call.from_user.id
     async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute("SELECT seller_id, amount, price, status, order_type FROM fez_orders WHERE order_id = ?",
-                                 (order_id,))
+        cursor = await db.execute(
+            "SELECT seller_id, amount, price, status, order_type FROM fez_orders WHERE order_id = ?",
+            (order_id,))
         result = await cursor.fetchone()
         if not result or result[3] != 'open' or result[4] != 'sell':
             await call.answer("❌ Ордер не найден или закрыт.", show_alert=True)
@@ -2733,7 +2762,8 @@ async def crypto_buy_from_sell(call: types.CallbackQuery, state: FSMContext):
             seller_name = f"ID {seller_id}"
 
     await state.set_state(CryptoFulfillBuyFromSell.amount)
-    await state.update_data(order_id=order_id, page=page, buyer_id=buyer_id, seller_id=seller_id, max_amount=amount, price=price)
+    await state.update_data(order_id=order_id, page=page, buyer_id=buyer_id, seller_id=seller_id, max_amount=amount,
+                            price=price)
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"crypto_sell_orders_page:{page}")]
@@ -2751,6 +2781,7 @@ async def crypto_buy_from_sell(call: types.CallbackQuery, state: FSMContext):
     )
     await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
+
 
 @dp.message(CryptoFulfillBuyFromSell.amount)
 async def process_fulfill_buy_from_sell(message: types.Message, state: FSMContext):
@@ -2867,6 +2898,7 @@ async def process_fulfill_buy_from_sell(message: types.Message, state: FSMContex
         pass
     await state.clear()
 
+
 @dp.callback_query(lambda c: c.data.startswith("crypto_sell_to_buy"))
 async def crypto_sell_to_buy(call: types.CallbackQuery, state: FSMContext):
     """Подтверждение продажи в ордер на покупку."""
@@ -2875,8 +2907,9 @@ async def crypto_sell_to_buy(call: types.CallbackQuery, state: FSMContext):
     page = int(page)
     seller_id = call.from_user.id
     async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute("SELECT buyer_id, amount, price, status, order_type FROM fez_orders WHERE order_id = ?",
-                                 (order_id,))
+        cursor = await db.execute(
+            "SELECT buyer_id, amount, price, status, order_type FROM fez_orders WHERE order_id = ?",
+            (order_id,))
         result = await cursor.fetchone()
         if not result or result[3] != 'open' or result[4] != 'buy':
             await call.answer("❌ Ордер не найден или закрыт.", show_alert=True)
@@ -2894,7 +2927,8 @@ async def crypto_sell_to_buy(call: types.CallbackQuery, state: FSMContext):
             buyer_name = f"ID {buyer_id}"
 
     await state.set_state(CryptoFulfillSellToBuy.amount)
-    await state.update_data(order_id=order_id, page=page, seller_id=seller_id, buyer_id=buyer_id, max_amount=amount, price=price)
+    await state.update_data(order_id=order_id, page=page, seller_id=seller_id, buyer_id=buyer_id, max_amount=amount,
+                            price=price)
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"crypto_buy_orders_page:{page}")]
@@ -2912,6 +2946,7 @@ async def crypto_sell_to_buy(call: types.CallbackQuery, state: FSMContext):
     )
     await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
+
 
 @dp.message(CryptoFulfillSellToBuy.amount)
 async def process_fulfill_sell_to_buy(message: types.Message, state: FSMContext):
@@ -3013,6 +3048,7 @@ async def process_fulfill_sell_to_buy(message: types.Message, state: FSMContext)
         pass
     await state.clear()
 
+
 @dp.callback_query(lambda c: c.data == "crypto_myorders")
 async def crypto_myorders(call: types.CallbackQuery):
     """Отображение ордеров пользователя."""
@@ -3047,12 +3083,14 @@ async def crypto_myorders(call: types.CallbackQuery):
                 f"Статус: {status_text}\n\n"
             )
             if status == 'open':
-                kb_rows.append([InlineKeyboardButton(text=f"❌ Удалить #{order_id}", callback_data=f"crypto_cancel_order:{order_id}")])
+                kb_rows.append([InlineKeyboardButton(text=f"❌ Удалить #{order_id}",
+                                                     callback_data=f"crypto_cancel_order:{order_id}")])
 
     kb_rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="crypto_back")])
     kb = InlineKeyboardMarkup(inline_keyboard=kb_rows)
     await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
+
 
 @dp.callback_query(lambda c: c.data.startswith("crypto_cancel_order"))
 async def crypto_cancel_order(call: types.CallbackQuery):
@@ -3061,7 +3099,9 @@ async def crypto_cancel_order(call: types.CallbackQuery):
     order_id = int(order_id)
     user_id = call.from_user.id
     async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute("SELECT seller_id, buyer_id, amount, price, status, order_type FROM fez_orders WHERE order_id = ?", (order_id,))
+        cursor = await db.execute(
+            "SELECT seller_id, buyer_id, amount, price, status, order_type FROM fez_orders WHERE order_id = ?",
+            (order_id,))
         result = await cursor.fetchone()
         if not result or result[4] != 'open':
             await call.answer("❌ Ордер не найден или уже закрыт/отменен.", show_alert=True)
@@ -3080,6 +3120,7 @@ async def crypto_cancel_order(call: types.CallbackQuery):
         await db.commit()
     await call.answer("✅ Ордер успешно отменен!", show_alert=True)
     await crypto_myorders(call)
+
 
 @dp.callback_query(lambda c: c.data == "crypto_back")
 async def crypto_back(call: types.CallbackQuery, state: FSMContext):
@@ -3114,6 +3155,7 @@ async def crypto_back(call: types.CallbackQuery, state: FSMContext):
     await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
 
+
 # =================================== ПРОФИЛЬ ===========================
 
 @dp.message(Command("profile"))
@@ -3121,7 +3163,8 @@ async def cmd_profile(message: types.Message):
     user_id = message.from_user.id
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            "SELECT username, coins, win_amount, lose_amount, fezcoin, fezcoin_sold, status, verified FROM users WHERE user_id = ?", (user_id,)
+            "SELECT username, coins, win_amount, lose_amount, fezcoin, fezcoin_sold, status, verified FROM users WHERE user_id = ?",
+            (user_id,)
         )
         result = await cursor.fetchone()
         if not result:
@@ -3147,6 +3190,7 @@ async def cmd_profile(message: types.Message):
         [InlineKeyboardButton(text="🎒 Инвентарь", callback_data=f"inventory_0_{user_id}")]
     ])
     await message.reply(text, reply_markup=kb, parse_mode="HTML")
+
 
 @dp.callback_query(lambda c: c.data.startswith("inventory_"))
 async def inventory_callback(call: types.CallbackQuery):
@@ -3230,6 +3274,7 @@ async def inventory_callback(call: types.CallbackQuery):
     await call.message.edit_text(text, reply_markup=markup, parse_mode="HTML")
     await call.answer()
 
+
 @dp.callback_query(lambda c: c.data.startswith("profile_back_"))
 async def profile_back_callback(call: types.CallbackQuery):
     parts = call.data.split("_")
@@ -3240,7 +3285,8 @@ async def profile_back_callback(call: types.CallbackQuery):
 
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            "SELECT username, coins, win_amount, lose_amount, fezcoin, fezcoin_sold, status, verified FROM users WHERE user_id = ?", (user_id,)
+            "SELECT username, coins, win_amount, lose_amount, fezcoin, fezcoin_sold, status, verified FROM users WHERE user_id = ?",
+            (user_id,)
         )
         result = await cursor.fetchone()
         username, coins, win_amount, lose_amount, fezcoin, fezcoin_sold, status, verified = result
@@ -3265,6 +3311,7 @@ async def profile_back_callback(call: types.CallbackQuery):
     await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
 
+
 # =================================== БАЛАНС ===========================
 
 @dp.message(Command("balance"))
@@ -3288,12 +3335,14 @@ async def cmd_balance(message: types.Message):
     )
     await message.reply(text, parse_mode="HTML")
 
+
 # =================================== СЛОТЫ ===========================
 
 
 last_slots = {}  # user_id: timestamp
 
 SLOT_SYMBOLS = ['🅱', '🍇', '🍋', '7️⃣']  # Cherry (BAR), Lemon, Grape, 7
+
 
 @dp.message(Command("slots"))
 @dp.message(lambda m: m.text and m.text.split()[0].lower() in ("слот", "слоты"))
@@ -3368,7 +3417,8 @@ async def cmd_slots(message: types.Message):
     async with aiosqlite.connect(DB_PATH) as db:
         if win_amount > 0:
             await db.execute("UPDATE users SET coins = coins + ? WHERE user_id = ?", (win_amount, user_id))
-            await db.execute("UPDATE users SET win_amount = win_amount + ? WHERE user_id = ?", (win_amount - bet, user_id))
+            await db.execute("UPDATE users SET win_amount = win_amount + ? WHERE user_id = ?",
+                             (win_amount - bet, user_id))
         else:
             await db.execute("UPDATE users SET lose_amount = lose_amount + ? WHERE user_id = ?", (bet, user_id))
         await db.commit()
@@ -3401,7 +3451,6 @@ async def cmd_slots(message: types.Message):
     last_slots[user_id] = now
 
 
-
 # ================== ФУНКЦИИ РАБОТЫ С БД ==================
 async def check_db_initialized():
     try:
@@ -3412,6 +3461,7 @@ async def check_db_initialized():
     except aiosqlite.OperationalError:
         print("Ошибка: таблица users не существует после инициализации.")
         return False
+
 
 async def get_user_data(user_id):
     if not await check_db_initialized():
@@ -3431,6 +3481,7 @@ async def get_user_data(user_id):
             }
         return {"coins": 0.0, "fezcoin": 0.0, "pet_slots": 3, "equipped_pets": []}
 
+
 async def get_cases():
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         cursor = await db.execute("""
@@ -3440,12 +3491,14 @@ async def get_cases():
         """)
         return await cursor.fetchall()
 
+
 async def update_case_quantity(case_id, quantity):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         await db.execute("""
             UPDATE cases SET quantity = quantity + ? WHERE case_id = ?
         """, (quantity, case_id))
         await db.commit()
+
 
 async def get_user_cases(user_id):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
@@ -3458,6 +3511,7 @@ async def get_user_cases(user_id):
         """, (user_id,))
         return await cursor.fetchall()
 
+
 async def get_user_pets(user_id):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         cursor = await db.execute("""
@@ -3469,6 +3523,7 @@ async def get_user_pets(user_id):
         """, (user_id,))
         return await cursor.fetchall()
 
+
 async def get_market_pets():
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         cursor = await db.execute("""
@@ -3478,6 +3533,7 @@ async def get_market_pets():
             ORDER BY mp.market_id
         """)
         return await cursor.fetchall()
+
 
 async def remove_user_case(user_id, case_id):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
@@ -3492,6 +3548,7 @@ async def remove_user_case(user_id, case_id):
         """, (user_id, case_id))
         await db.commit()
 
+
 async def add_user_case(user_id, case_id, quantity=1):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         await db.execute("""
@@ -3505,6 +3562,7 @@ async def add_user_case(user_id, case_id, quantity=1):
         """, (quantity, case_id))
         await db.commit()
 
+
 async def add_user_pet(user_id, pet_id, quantity=1):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         await db.execute("""
@@ -3514,6 +3572,7 @@ async def add_user_pet(user_id, pet_id, quantity=1):
             DO UPDATE SET quantity = quantity + excluded.quantity
         """, (user_id, pet_id, quantity))
         await db.commit()
+
 
 async def update_user_fezcoin(user_id, amount):
     if not await check_db_initialized():
@@ -3525,6 +3584,7 @@ async def update_user_fezcoin(user_id, amount):
         """, (amount, user_id))
         await db.commit()
 
+
 async def update_user_pet_slots(user_id):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""
@@ -3532,12 +3592,14 @@ async def update_user_pet_slots(user_id):
         """, (user_id,))
         await db.commit()
 
+
 async def update_equipped_pets(user_id, equipped_pets):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""
             UPDATE users SET equipped_pets = ? WHERE user_id = ?
         """, (str(equipped_pets), user_id))
         await db.commit()
+
 
 async def add_market_pet(user_id: int, pet_id: int, quantity: int, price: int):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
@@ -3600,6 +3662,7 @@ async def add_market_pet(user_id: int, pet_id: int, quantity: int, price: int):
             await db.rollback()
             raise
 
+
 async def remove_user_pet(user_id, pet_id, quantity=1):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         await db.execute("""
@@ -3613,6 +3676,7 @@ async def remove_user_pet(user_id, pet_id, quantity=1):
         """, (user_id, pet_id))
         await db.commit()
 
+
 async def remove_market_pet(market_id):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         await db.execute("""
@@ -3620,19 +3684,24 @@ async def remove_market_pet(market_id):
         """, (market_id,))
         await db.commit()
 
+
 # Состояния FSM
 class BuyCaseState(StatesGroup):
     waiting_quantity = State()
 
+
 class SellImmediateState(StatesGroup):
     waiting_quantity = State()
+
 
 class SellPetState(StatesGroup):
     waiting_price = State()
     waiting_quantity = State()
 
+
 class EquipPetState(StatesGroup):
     waiting_quantity = State()
+
 
 # ================== КОМАНДЫ ==================
 @dp.message(Command("case"))
@@ -3658,8 +3727,10 @@ async def cmd_case(message: Message):
         return
     await show_case(message, user_id, cases, 0)
 
+
 from aiogram.types import InputMediaPhoto, FSInputFile
 from pathlib import Path
+
 
 async def show_case(message_or_callback, user_id, cases, index):
     case_id, case_name, price, quantity = cases[index]
@@ -3670,7 +3741,9 @@ async def show_case(message_or_callback, user_id, cases, index):
     chances = "50% (GG), 40% (Fezcoin), 10% (Питомец), 1% (+1 место)" if not is_halloween else "50% (GG), 40% (Fezcoin), 10% (Питомец)"
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="Купить" if quantity > 0 else "", callback_data=f"case_buy_{case_id}") if quantity > 0 else InlineKeyboardButton(text="", callback_data="empty")
+            InlineKeyboardButton(text="Купить" if quantity > 0 else "",
+                                 callback_data=f"case_buy_{case_id}") if quantity > 0 else InlineKeyboardButton(text="",
+                                                                                                                callback_data="empty")
         ],
         [
             InlineKeyboardButton(text="<", callback_data=f"case_prev_{index}"),
@@ -3725,6 +3798,8 @@ async def show_case(message_or_callback, user_id, cases, index):
             reply_markup=keyboard,
             parse_mode="HTML"
         )
+
+
 @dp.callback_query(F.data.startswith(("case_prev_", "case_next_")))
 async def case_navigate(callback: CallbackQuery):
     user_id = callback.from_user.id
@@ -3738,6 +3813,7 @@ async def case_navigate(callback: CallbackQuery):
     elif "next" in callback.data:
         index = (index + 1) % len(cases)
     await show_case(callback, user_id, cases, index)
+
 
 @dp.callback_query(F.data.startswith("case_buy_"))
 async def case_buy(callback: CallbackQuery, state: FSMContext):
@@ -3798,6 +3874,7 @@ async def case_buy(callback: CallbackQuery, state: FSMContext):
 
     await state.set_state(BuyCaseState.waiting_quantity)
 
+
 @dp.message(BuyCaseState.waiting_quantity)
 async def process_buy_quantity(message: Message, state: FSMContext):
     user_id = message.from_user.id
@@ -3837,11 +3914,13 @@ async def process_buy_quantity(message: Message, state: FSMContext):
     )
     await state.clear()
 
+
 @dp.callback_query(F.data == "case_back")
 async def case_back(callback: CallbackQuery):
     user_id = callback.from_user.id
     cases = await get_cases()
     await show_case(callback, user_id, cases, 0)
+
 
 @dp.message(Command("inv"))
 @dp.message(lambda m: m.text and m.text.lower() in ["инв", "инвентарь"])
@@ -3877,6 +3956,7 @@ async def cmd_inv(message: Message, bot: Bot):
         total_pages = (len(user_pets) + MAX_PETS_PER_PAGE - 1) // MAX_PETS_PER_PAGE
         await show_inv_pets(message, user_pets, 0, total_pages, bot)
 
+
 async def show_inv_case(message_or_callback, user_id, cases, index, bot):
     case_id, case_name, quantity = cases[index]
     is_halloween = case_id == 2
@@ -3885,11 +3965,15 @@ async def show_inv_case(message_or_callback, user_id, cases, index, bot):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔓 Открыть кейс", callback_data=f"case_open_{case_id}")],
         [
-            InlineKeyboardButton(text="⬅️", callback_data=f"inv_case_prev_{index}") if index > 0 else InlineKeyboardButton(text="", callback_data="empty"),
+            InlineKeyboardButton(text="⬅️",
+                                 callback_data=f"inv_case_prev_{index}") if index > 0 else InlineKeyboardButton(text="",
+                                                                                                                callback_data="empty"),
             InlineKeyboardButton(text=f"[{index + 1}/{len(cases)}]", callback_data="empty"),
-            InlineKeyboardButton(text="➡️", callback_data=f"inv_case_next_{index}") if index < len(cases) - 1 else InlineKeyboardButton(text="", callback_data="empty")
+            InlineKeyboardButton(text="➡️", callback_data=f"inv_case_next_{index}") if index < len(
+                cases) - 1 else InlineKeyboardButton(text="", callback_data="empty")
         ],
-        [InlineKeyboardButton(text="🐾 Питомцы", callback_data="inv_pets") if await get_user_pets(user_id) else InlineKeyboardButton(text="", callback_data="empty")]
+        [InlineKeyboardButton(text="🐾 Питомцы", callback_data="inv_pets") if await get_user_pets(
+            user_id) else InlineKeyboardButton(text="", callback_data="empty")]
     ])
     text = (
         "<b>🎒 Инвентарь: Кейсы</b>\n"
@@ -3914,10 +3998,6 @@ async def show_inv_case(message_or_callback, user_id, cases, index, bot):
         await message_or_callback.reply(text, reply_markup=keyboard, parse_mode="HTML")
 
 
-
-
-
-
 @dp.callback_query(F.data.startswith("case_open_"))
 async def inv_open_case(callback: CallbackQuery):
     try:
@@ -3926,7 +4006,8 @@ async def inv_open_case(callback: CallbackQuery):
         await callback.message.edit_text(
             "<b>❌ ОШИБКА ❌</b>\n"
             "<blockquote>Некорректный формат запроса! 😿</blockquote>",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_cases")]]),
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_cases")]]),
             parse_mode="HTML"
         )
         await callback.answer()
@@ -3957,7 +4038,8 @@ async def inv_open_case(callback: CallbackQuery):
             await callback.message.edit_text(
                 "<b>❌ ОШИБКА ❌</b>\n"
                 "<blockquote>У тебя нет этого кейса! 😿</blockquote>",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_cases")]]),
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_cases")]]),
                 parse_mode="HTML"
             )
             await callback.answer()
@@ -3995,7 +4077,8 @@ async def inv_open_case(callback: CallbackQuery):
                 await bomb_message.edit_text(
                     "<b>❌ ОШИБКА ❌</b>\n"
                     "<blockquote>В этом кейсе нет питомцев! 😿</blockquote>",
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_cases")]]),
+                    reply_markup=InlineKeyboardMarkup(
+                        inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_cases")]]),
                     parse_mode="HTML"
                 )
                 await callback.answer()
@@ -4005,7 +4088,8 @@ async def inv_open_case(callback: CallbackQuery):
             weights = []
             for pet in pets_list:
                 pet_id, pet_name, pet_rarity, pet_bonus, pet_type = pet
-                weight = {'Common': 0.5, 'Rare': 0.3, 'Epic': 0.15, 'Legendary': 0.04, 'Secret': 0.01}.get(pet_rarity, 0.01)
+                weight = {'Common': 0.5, 'Rare': 0.3, 'Epic': 0.15, 'Legendary': 0.04, 'Secret': 0.01}.get(pet_rarity,
+                                                                                                           0.01)
                 pet_options.append(pet)
                 weights.append(weight)
             pet = random.choices(pet_options, weights=weights, k=1)[0]
@@ -4019,26 +4103,26 @@ async def inv_open_case(callback: CallbackQuery):
         result_text += (
             f"<blockquote>🐾 Питомец: <b>{pet_name}</b>\n"
             f"💛 Редкость: <code>{pet_rarity}</code>\n"
-            f"💰 Бонус к ферме: <code>{pet_bonus*100:.0f}%</code> 💸</blockquote>"
+            f"💰 Бонус к ферме: <code>{pet_bonus * 100:.0f}%</code> 💸</blockquote>"
         )
     elif reward == "GG":
         if is_halloween:
             gg_ranges = [
-                (100000000, 500000000, 0.40), # 100M - 500M
-                (500000000, 800000000, 0.35), # 500M - 800M
-                (800000000, 1300000000, 0.25), # 800M - 1.3B
-                (1300000000, 4200000000, 0.05), # 1.3B - 4.2B
-                (4200000000, 8000000000, 0.01), # 4.2B - 8B
-                (100000000000, 100000000000, 0.001) # 100B
+                (100000000, 500000000, 0.40),  # 100M - 500M
+                (500000000, 800000000, 0.35),  # 500M - 800M
+                (800000000, 1300000000, 0.25),  # 800M - 1.3B
+                (1300000000, 4200000000, 0.05),  # 1.3B - 4.2B
+                (4200000000, 8000000000, 0.01),  # 4.2B - 8B
+                (100000000000, 100000000000, 0.001)  # 100B
             ]
         else:
             gg_ranges = [
-                (50000000, 250000000, 0.40), # 50M - 250M
-                (250000000, 400000000, 0.35), # 250M - 400M
-                (400000000, 650000000, 0.25), # 400M - 650M
-                (650000000, 2100000000, 0.05), # 650M - 2.1B
-                (2100000000, 4000000000, 0.01), # 2.1B - 4B
-                (50000000000, 50000000000, 0.001) # 50B
+                (50000000, 250000000, 0.40),  # 50M - 250M
+                (250000000, 400000000, 0.35),  # 250M - 400M
+                (400000000, 650000000, 0.25),  # 400M - 650M
+                (650000000, 2100000000, 0.05),  # 650M - 2.1B
+                (2100000000, 4000000000, 0.01),  # 2.1B - 4B
+                (50000000000, 50000000000, 0.001)  # 50B
             ]
         gg_range = random.choices(gg_ranges, weights=[r[2] for r in gg_ranges], k=1)[0]
         gg_amount = random.randint(gg_range[0], gg_range[1])
@@ -4051,21 +4135,21 @@ async def inv_open_case(callback: CallbackQuery):
     elif reward == "Fezcoin":
         if is_halloween:
             fezcoin_ranges = [
-                (2000, 10000, 0.40), # 2000 - 10000
-                (10000, 20000, 0.35), # 10000 - 20000
-                (20000, 30000, 0.25), # 20000 - 30000
-                (30000, 100000, 0.05), # 30000 - 100000
-                (100000, 200000, 0.001), # 100000 - 200000
-                (1000000, 1000000, 0.0001) # 1M
+                (2000, 10000, 0.40),  # 2000 - 10000
+                (10000, 20000, 0.35),  # 10000 - 20000
+                (20000, 30000, 0.25),  # 20000 - 30000
+                (30000, 100000, 0.05),  # 30000 - 100000
+                (100000, 200000, 0.001),  # 100000 - 200000
+                (1000000, 1000000, 0.0001)  # 1M
             ]
         else:
             fezcoin_ranges = [
-                (1000, 5000, 0.40), # 1000 - 5000
-                (5000, 10000, 0.35), # 5000 - 10000
-                (10000, 15000, 0.25), # 10000 - 15000
-                (15000, 50000, 0.05), # 15000 - 50000
-                (50000, 100000, 0.001), # 50000 - 100000
-                (1000000, 1000000, 0.0001) # 1M
+                (1000, 5000, 0.40),  # 1000 - 5000
+                (5000, 10000, 0.35),  # 5000 - 10000
+                (10000, 15000, 0.25),  # 10000 - 15000
+                (15000, 50000, 0.05),  # 15000 - 50000
+                (50000, 100000, 0.001),  # 50000 - 100000
+                (1000000, 1000000, 0.0001)  # 1M
             ]
         fezcoin_range = random.choices(fezcoin_ranges, weights=[r[2] for r in fezcoin_ranges], k=1)[0]
         fezcoin_amount = random.randint(fezcoin_range[0], fezcoin_range[1])
@@ -4106,11 +4190,13 @@ async def inv_open_case(callback: CallbackQuery):
     )
     await callback.answer()
 
+
 async def show_inv_pets(message_or_callback, pets, page, total_pages, bot):
     start_idx = page * MAX_PETS_PER_PAGE
     end_idx = min((page + 1) * MAX_PETS_PER_PAGE, len(pets))
     page_pets = pets[start_idx:end_idx]
-    user_id = message_or_callback.from_user.id if isinstance(message_or_callback, CallbackQuery) else message_or_callback.from_user.id
+    user_id = message_or_callback.from_user.id if isinstance(message_or_callback,
+                                                             CallbackQuery) else message_or_callback.from_user.id
     user_data = await get_user_data(user_id)
     equipped_pets = user_data['equipped_pets']
     equipped_count = len(equipped_pets)
@@ -4121,19 +4207,20 @@ async def show_inv_pets(message_or_callback, pets, page, total_pages, bot):
         equipped_text = f"✅ [{equipped_quantity} шт]" if is_equipped and equipped_quantity > 0 else ""
         pet_list.append(f"• {pet_name} ({quantity} шт, <b>{rarity}</b>) <i>{equipped_text}</i>")
     text = (
-        "<b>🎒 Инвентарь: Питомцы</b>\n\n"
-        f"<blockquote><i>🐾 Питомцы — ваши верные помощники на ферме! Они увеличивают доход Fezcoin. Вы можете применить до {MAX_EQUIPPED_PETS} питомцев.</i></blockquote>\n\n"
-        f"<b>🟢 Применено:</b> <code>{equipped_count}/{MAX_EQUIPPED_PETS}</code> мест\n"
-        f"<b>📄 Страница:</b> {page + 1}/{total_pages}\n\n"
-        "<b>🐾 Список питомцев:</b>\n" +
-        "\n".join(pet_list) +
-        "\n\n<i>💡 Выберите питомца, чтобы узнать подробности или выставить на продажу!</i>"
+            "<b>🎒 Инвентарь: Питомцы</b>\n\n"
+            f"<blockquote><i>🐾 Питомцы — ваши верные помощники на ферме! Они увеличивают доход Fezcoin. Вы можете применить до {MAX_EQUIPPED_PETS} питомцев.</i></blockquote>\n\n"
+            f"<b>🟢 Применено:</b> <code>{equipped_count}/{MAX_EQUIPPED_PETS}</code> мест\n"
+            f"<b>📄 Страница:</b> {page + 1}/{total_pages}\n\n"
+            "<b>🐾 Список питомцев:</b>\n" +
+            "\n".join(pet_list) +
+            "\n\n<i>💡 Выберите питомца, чтобы узнать подробности или выставить на продажу!</i>"
     )
     keyboard = []
     for pet_id, pet_name, quantity, rarity in page_pets:
         is_equipped = pet_id in equipped_pets
         equipped_mark = " ✅" if is_equipped else ""
-        keyboard.append([InlineKeyboardButton(text=f"{pet_name} ({quantity} шт){equipped_mark}", callback_data=f"pet_info_{pet_id}")])
+        keyboard.append([InlineKeyboardButton(text=f"{pet_name} ({quantity} шт){equipped_mark}",
+                                              callback_data=f"pet_info_{pet_id}")])
     nav_buttons = []
     if page > 0:
         nav_buttons.append(InlineKeyboardButton(text="⬅️", callback_data=f"pets_prev_{page}"))
@@ -4152,7 +4239,9 @@ async def show_inv_pets(message_or_callback, pets, page, total_pages, bot):
             parse_mode="HTML"
         )
     else:
-        await message_or_callback.reply(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML")
+        await message_or_callback.reply(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+                                        parse_mode="HTML")
+
 
 async def show_pet_info(callback: types.CallbackQuery, pet_id):
     user_id = callback.from_user.id
@@ -4173,7 +4262,8 @@ async def show_pet_info(callback: types.CallbackQuery, pet_id):
         bonus, case_id = row[0], row[1]
 
         # Проверяем, есть ли уже лот для этого питомца
-        cursor = await db.execute("SELECT quantity FROM market_pets WHERE seller_id = ? AND pet_id = ?", (user_id, pet_id))
+        cursor = await db.execute("SELECT quantity FROM market_pets WHERE seller_id = ? AND pet_id = ?",
+                                  (user_id, pet_id))
         existing_lot = await cursor.fetchone()
 
     # Определяем, является ли питомец хеллоуинским
@@ -4195,20 +4285,26 @@ async def show_pet_info(callback: types.CallbackQuery, pet_id):
 
     # Формируем клавиатуру для отображения
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="❌ Снять с продажи" if existing_lot else "🏪 Выставить на маркет" if can_sell_on_market else "⚠️ Нельзя выставить", callback_data=f"{'remove_lot' if existing_lot else 'sell_pet'}_{user_id}_{pet_id}" if can_sell_on_market else "disabled")],
-        [InlineKeyboardButton(text=f"💰 Продать сразу ({format_balance(sell_price)} GG)", callback_data=f"sell_immediate_{pet_id}")],
-        [InlineKeyboardButton(text=f"🌟 Применить" if not is_equipped else "❌ Снять", callback_data=f"equip_pet_{pet_id}")],
+        [InlineKeyboardButton(
+            text="❌ Снять с продажи" if existing_lot else "🏪 Выставить на маркет" if can_sell_on_market else "⚠️ Нельзя выставить",
+            callback_data=f"{'remove_lot' if existing_lot else 'sell_pet'}_{user_id}_{pet_id}" if can_sell_on_market else "disabled")],
+        [InlineKeyboardButton(text=f"💰 Продать сразу ({format_balance(sell_price)} GG)",
+                              callback_data=f"sell_immediate_{pet_id}")],
+        [InlineKeyboardButton(text=f"🌟 Применить" if not is_equipped else "❌ Снять",
+                              callback_data=f"equip_pet_{pet_id}")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]
     ])
     text = (
         f"<b>🐾 Питомец: {pet_name}</b>\n\n"
         f"<b>🔹 Редкость:</b> <code>{rarity}</code>\n"
         f"<b>🟢 Количество:</b> <code>{quantity}</code> шт.\n"
-        f"<b>📈 Бонус на ферме:</b> +{bonus*100:.1f}% Fezcoin\n"  # Бонус остаётся в Fezcoin, как в оригинале
+        f"<b>📈 Бонус на ферме:</b> +{bonus * 100:.1f}% Fezcoin\n"  # Бонус остаётся в Fezcoin, как в оригинале
         f"<b>🌟 Статус:</b> {'Применён' if is_equipped else 'Не применён'}\n\n"
         "<i>💡 Вы можете применить питомца для увеличения дохода на ферме, продать его сразу или выставить на маркет (если это секретный, легендарный или сезонный питомец из хеллоуинского кейса)!</i>"
     )
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+
+
 @dp.callback_query(lambda c: c.data.startswith("remove_lot_"))
 async def remove_lot_cb(callback: types.CallbackQuery):
     try:
@@ -4217,7 +4313,8 @@ async def remove_lot_cb(callback: types.CallbackQuery):
     except (ValueError, IndexError):
         await callback.message.edit_text(
             "<b>❌ Ошибка</b>\n<blockquote>Некорректный формат запроса! 😿</blockquote>",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
             parse_mode="HTML"
         )
         await callback.answer()
@@ -4235,7 +4332,8 @@ async def remove_lot_cb(callback: types.CallbackQuery):
                 if not row:
                     await callback.message.edit_text(
                         "<b>❌ Ошибка</b>\n<blockquote>Лот не найден! 😿</blockquote>",
-                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
+                        reply_markup=InlineKeyboardMarkup(
+                            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
                         parse_mode="HTML"
                     )
                     await callback.answer()
@@ -4269,18 +4367,21 @@ async def remove_lot_cb(callback: types.CallbackQuery):
                 )
                 await callback.message.edit_text(
                     text,
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
+                    reply_markup=InlineKeyboardMarkup(
+                        inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
                     parse_mode="HTML"
                 )
             except Exception as e:
                 await db.rollback()  # Откатываем транзакцию при ошибке
                 await callback.message.edit_text(
                     "<b>❌ Ошибка</b>\n<blockquote>Не удалось снять лот! Попробуйте позже. 😿</blockquote>",
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
+                    reply_markup=InlineKeyboardMarkup(
+                        inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
                     parse_mode="HTML"
                 )
                 await callback.answer(str(e), show_alert=True)
     await callback.answer()
+
 
 # Вспомогательная функция для получения имени питомца
 async def get_pet_name(pet_id):
@@ -4288,6 +4389,7 @@ async def get_pet_name(pet_id):
         cur = await db.execute("SELECT name FROM pets WHERE pet_id = ?", (pet_id,))
         row = await cur.fetchone()
         return row[0] if row else "Неизвестный питомец"
+
 
 @dp.callback_query(F.data.startswith(("inv_case_prev_", "inv_case_next_")))
 async def inv_case_navigate(callback: CallbackQuery):
@@ -4302,7 +4404,6 @@ async def inv_case_navigate(callback: CallbackQuery):
     elif "next" in callback.data and index < len(cases) - 1:
         index += 1
     await show_inv_case(callback, user_id, cases, index, callback.message.bot)
-
 
 
 @dp.callback_query(F.data.in_(["case_redirect", "inv_cases", "inv_pets", "inv_pets_back"]))
@@ -4322,7 +4423,9 @@ async def inventory_navigate(callback: CallbackQuery, bot: Bot):
                 "➡️ Используйте команду <code>/case</code> для покупки.\n"
                 "<i>💡 Совет: Кейсы содержат питомцев, Fezcoin, GG и редкие бонусы!</i>"
             )
-            await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🛒 Купить кейсы", callback_data="case_redirect")]]), parse_mode="HTML")
+            await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="🛒 Купить кейсы", callback_data="case_redirect")]]),
+                                             parse_mode="HTML")
     elif callback.data in ["inv_pets", "inv_pets_back"]:
         pets = await get_user_pets(user_id)
         if pets:
@@ -4336,8 +4439,11 @@ async def inventory_navigate(callback: CallbackQuery, bot: Bot):
                 "➡️ Используйте команду <code>/case</code> для покупки кейсов.\n"
                 "<i>💡 Питомцы увеличивают доход на ферме!</i>"
             )
-            await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📦 Купить кейсы", callback_data="case_redirect")]]), parse_mode="HTML")
+            await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="📦 Купить кейсы", callback_data="case_redirect")]]),
+                                             parse_mode="HTML")
     await callback.answer()
+
 
 @dp.callback_query(F.data.startswith(("pets_prev_", "pets_next_")))
 async def pets_navigate(callback: CallbackQuery):
@@ -4354,10 +4460,12 @@ async def pets_navigate(callback: CallbackQuery):
         page += 1
     await show_inv_pets(callback, pets, page, total_pages, callback.message.bot)
 
+
 @dp.callback_query(F.data.startswith("pet_info_"))
 async def pet_info(callback: CallbackQuery):
     pet_id = int(callback.data.split("_")[-1])
     await show_pet_info(callback, pet_id)
+
 
 @dp.callback_query(F.data.startswith("sell_pet_"))
 async def sell_pet(callback: types.CallbackQuery, state: FSMContext):
@@ -4390,6 +4498,7 @@ async def sell_pet(callback: types.CallbackQuery, state: FSMContext):
     )
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     await state.set_state(SellPetState.waiting_price)
+
 
 @dp.message(SellPetState.waiting_price)
 async def process_sell_price(message: Message, state: FSMContext):
@@ -4427,6 +4536,7 @@ async def process_sell_price(message: Message, state: FSMContext):
     )
     await message.reply(text, reply_markup=keyboard, parse_mode="HTML")
     await state.set_state(SellPetState.waiting_quantity)
+
 
 @dp.message(SellPetState.waiting_quantity)
 async def process_sell_quantity(message: Message, state: FSMContext):
@@ -4470,7 +4580,8 @@ async def process_sell_quantity(message: Message, state: FSMContext):
             )
         await message.reply(
             text,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
             parse_mode="HTML"
         )
         await state.clear()
@@ -4504,6 +4615,7 @@ async def process_sell_quantity(message: Message, state: FSMContext):
     )
     await message.reply(text, parse_mode="HTML")
 
+
 @dp.callback_query(F.data.startswith("sell_immediate_"))
 async def sell_immediate_start(callback: types.CallbackQuery, state: FSMContext):
     pet_id = int(callback.data.split("_")[-1])
@@ -4524,12 +4636,12 @@ async def sell_immediate_start(callback: types.CallbackQuery, state: FSMContext)
 
     # Устанавливаем базовую цену в GG
     base_price = {
-        "Common": 600000000,    # 600кк
-        "Rare": 1200000000,      # 1.2ккк
-        "Epic": 2000000000,     # 2ккк
-        "Legendary": 10000000000, # 10ккк
-        "Secret": 200000000000  # 200ккк
-    }[rarity] * multiplier
+                     "Common": 600000000,  # 600кк
+                     "Rare": 1200000000,  # 1.2ккк
+                     "Epic": 2000000000,  # 2ккк
+                     "Legendary": 10000000000,  # 10ккк
+                     "Secret": 200000000000  # 200ккк
+                 }[rarity] * multiplier
 
     sell_price = base_price * 0.5  # 50% от базовой цены
 
@@ -4549,10 +4661,12 @@ async def sell_immediate_start(callback: types.CallbackQuery, state: FSMContext)
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     await state.set_state(SellImmediateState.waiting_quantity)
 
+
 async def update_user_coins(user_id: int, amount: float):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE users SET coins = coins + ? WHERE user_id = ?", (amount, user_id))
         await db.commit()
+
 
 @dp.message(SellImmediateState.waiting_quantity)
 async def process_sell_immediate_quantity(message: types.Message, state: FSMContext):
@@ -4610,7 +4724,10 @@ async def process_sell_immediate_quantity(message: types.Message, state: FSMCont
         f"{adjustment_message}\n"
         "<i>💡 Вернитесь к питомцам для дальнейших действий!</i>"
     )
-    await message.reply(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад к питомцам", callback_data="inv_pets_back")]]), parse_mode="HTML")
+    await message.reply(text, reply_markup=InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад к питомцам", callback_data="inv_pets_back")]]),
+                        parse_mode="HTML")
+
 
 @dp.callback_query(F.data.startswith("equip_pet_"))
 async def equip_pet(callback: CallbackQuery, state: FSMContext):
@@ -4635,7 +4752,9 @@ async def equip_pet(callback: CallbackQuery, state: FSMContext):
             f"<b>🟢 Свободно мест:</b> <code>{len(equipped_pets)}/{MAX_EQUIPPED_PETS}</code>\n"
             "<i>💡 Теперь вы можете применить других питомцев!</i>"
         )
-        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад к питомцам", callback_data="inv_pets_back")]]), parse_mode="HTML")
+        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад к питомцам", callback_data="inv_pets_back")]]),
+                                         parse_mode="HTML")
     else:
         if equipped_count >= MAX_EQUIPPED_PETS:
             await callback.answer(f"❌ Максимум {MAX_EQUIPPED_PETS} питомцев могут быть применены!", show_alert=True)
@@ -4654,6 +4773,7 @@ async def equip_pet(callback: CallbackQuery, state: FSMContext):
         )
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
         await state.set_state(EquipPetState.waiting_quantity)
+
 
 @dp.message(EquipPetState.waiting_quantity)
 async def process_equip_quantity(message: Message, state: FSMContext):
@@ -4685,17 +4805,22 @@ async def process_equip_quantity(message: Message, state: FSMContext):
         f"<b>🟢 Применено:</b> <code>{len(equipped_pets)}/{MAX_EQUIPPED_PETS}</code> мест\n\n"
         "<i>💡 Теперь ваш доход на ферме увеличен!</i>"
     )
-    await message.reply(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад к питомцам", callback_data="inv_pets_back")]]), parse_mode="HTML")
+    await message.reply(text, reply_markup=InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад к питомцам", callback_data="inv_pets_back")]]),
+                        parse_mode="HTML")
+
 
 # Константы
 TYPES_PER_PAGE = 7
 LOTS_PER_PAGE = 7
 MOSCOW = pytz.timezone('Europe/Moscow')
 
+
 class MarketState(StatesGroup):
     BUY_QTY = State()
     SELL_QTY = State()
     SELL_PRICE = State()
+
 
 async def _types_list(page: int) -> tuple[list, int]:
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
@@ -4724,6 +4849,7 @@ async def _types_list(page: int) -> tuple[list, int]:
         """)
         total_lots = (await cur.fetchone())[0]
     return rows, total_types, total_lots
+
 
 async def _lots_buy(animal_type: str, page: int) -> tuple[list, int]:
     async with aiosqlite.connect(MARKET_DB_PATH) as db_market:
@@ -4759,6 +4885,7 @@ async def _lots_buy(animal_type: str, page: int) -> tuple[list, int]:
 
     return result, total
 
+
 async def _lots_sell(animal_type: str, page: int) -> tuple[list, int]:
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         cur = await db.execute("""
@@ -4780,6 +4907,7 @@ async def _lots_sell(animal_type: str, page: int) -> tuple[list, int]:
         total = (await cur.fetchone())[0]
     return rows, total
 
+
 async def _my_lots(user_id: int, page: int) -> tuple[list, int]:
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
         cur = await db.execute("""
@@ -4795,14 +4923,15 @@ async def _my_lots(user_id: int, page: int) -> tuple[list, int]:
         total = (await cur.fetchone())[0]
     return rows, total
 
+
 async def show_main(event: Union[types.Message, types.CallbackQuery], page: int = 0):
     types_list, total_types, total_lots = await _types_list(page)
     kb = [[InlineKeyboardButton(text=f"🐾 {t[0]} ({t[1]} пр.)", callback_data=f"m_type_{t[0]}_0")] for t in types_list]
     nav = []
     if page > 0:
-        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"m_page_{page-1}"))
+        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"m_page_{page - 1}"))
     if (page + 1) * TYPES_PER_PAGE < total_types:
-        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"m_page_{page+1}"))
+        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"m_page_{page + 1}"))
     if nav:
         kb.append(nav)
     kb.append([InlineKeyboardButton(text="📋 Мои лоты", callback_data="m_my_0")])
@@ -4822,6 +4951,7 @@ async def show_main(event: Union[types.Message, types.CallbackQuery], page: int 
     else:
         await event.message.edit_text(text, reply_markup=markup, parse_mode="HTML")
 
+
 @dp.message(Command("market"))
 @dp.message(lambda m: m.text and m.text.lower() in ["маркет", "market"])
 async def cmd_market(m: types.Message):
@@ -4834,11 +4964,13 @@ async def cmd_market(m: types.Message):
         return
     await show_main(m)
 
+
 @dp.callback_query(lambda c: c.data.startswith("m_page_"))
 async def page_cb(c: types.CallbackQuery):
     page = int(c.data.split("_")[2])
     await show_main(c, page)
     await c.answer()
+
 
 @dp.callback_query(lambda c: c.data.startswith("m_type_"))
 async def type_cb(c: types.CallbackQuery):
@@ -4847,12 +4979,13 @@ async def type_cb(c: types.CallbackQuery):
     kb = []
     for lot in lots:
         lid, _, qty, price, username, _ = lot
-        kb.append([InlineKeyboardButton(text=f"{username}, {format_balance(price)} GG", callback_data=f"m_selbuy_{lid}")])
+        kb.append(
+            [InlineKeyboardButton(text=f"{username}, {format_balance(price)} GG", callback_data=f"m_selbuy_{lid}")])
     nav = []
     if page > 0:
-        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"m_type_{animal_type}_{page-1}"))
+        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"m_type_{animal_type}_{page - 1}"))
     if (page + 1) * LOTS_PER_PAGE < total:
-        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"m_type_{animal_type}_{page+1}"))
+        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"m_type_{animal_type}_{page + 1}"))
     if nav:
         kb.append(nav)
     kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")])
@@ -4868,6 +5001,7 @@ async def type_cb(c: types.CallbackQuery):
     )
     await c.message.edit_text(text, reply_markup=markup, parse_mode="HTML")
     await c.answer()
+
 
 @dp.callback_query(lambda c: c.data.startswith("m_my_"))
 async def my_lots_cb(c: types.CallbackQuery):
@@ -4891,14 +5025,15 @@ async def my_lots_cb(c: types.CallbackQuery):
         text += "</blockquote>\n<i>Сними лот, чтобы вернуть питомцев в инвентарь!</i> ✨"
     nav = []
     if page > 0:
-        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"m_my_{page-1}"))
+        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"m_my_{page - 1}"))
     if (page + 1) * LOTS_PER_PAGE < total:
-        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"m_my_{page+1}"))
+        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"m_my_{page + 1}"))
     if nav:
         kb.append(nav)
     kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")])
     await c.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb), parse_mode="HTML")
     await c.answer()
+
 
 @dp.callback_query(lambda c: c.data.startswith("m_rm_"))
 async def remove_cb(c: types.CallbackQuery):
@@ -4923,10 +5058,12 @@ async def remove_cb(c: types.CallbackQuery):
     )
     await c.message.edit_text(
         text,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
         parse_mode="HTML"
     )
     await c.answer()
+
 
 @dp.callback_query(lambda c: c.data.startswith("m_selbuy_"))
 async def select_buy_cb(c: types.CallbackQuery, state: FSMContext):
@@ -4935,7 +5072,8 @@ async def select_buy_cb(c: types.CallbackQuery, state: FSMContext):
     except (ValueError, IndexError):
         await c.message.edit_text(
             "<b>❌ Ошибка</b>\n<blockquote>Некорректный ID лота!</blockquote>",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
             parse_mode="HTML"
         )
         await c.answer()
@@ -4952,7 +5090,8 @@ async def select_buy_cb(c: types.CallbackQuery, state: FSMContext):
         if not row:
             await c.message.edit_text(
                 "<b>❌ Ошибка</b>\n<blockquote>Лот не найден!</blockquote>",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
                 parse_mode="HTML"
             )
             await c.answer()
@@ -4975,12 +5114,15 @@ async def select_buy_cb(c: types.CallbackQuery, state: FSMContext):
     )
     await c.message.edit_text(
         text,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_0")]]),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_0")]]),
         parse_mode="HTML"
     )
-    await state.update_data(market_id=market_id, pet_id=pet_id, price=price, quantity=quantity, animal_type=animal_type, pet_name=pet_name, seller_id=seller_id)
+    await state.update_data(market_id=market_id, pet_id=pet_id, price=price, quantity=quantity, animal_type=animal_type,
+                            pet_name=pet_name, seller_id=seller_id)
     await state.set_state(MarketState.BUY_QTY)
     await c.answer()
+
 
 @dp.callback_query(lambda c: c.data.startswith("m_buyconfirm_"))
 async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
@@ -4991,6 +5133,7 @@ async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
     await c.message.reply("Введите количество (1-?):", parse_mode="HTML")
     await c.answer()
 
+
 @dp.message(MarketState.BUY_QTY)
 async def buy_qty(m: types.Message, state: FSMContext):
     data = await state.get_data()
@@ -5000,12 +5143,15 @@ async def buy_qty(m: types.Message, state: FSMContext):
             raise ValueError
     except ValueError:
         async with aiosqlite.connect(MARKET_DB_PATH) as db:
-            cur = await db.execute("SELECT quantity, price, name FROM market_pets mp JOIN pets p ON p.pet_id = mp.pet_id WHERE market_id=?", (data["market_id"],))
+            cur = await db.execute(
+                "SELECT quantity, price, name FROM market_pets mp JOIN pets p ON p.pet_id = mp.pet_id WHERE market_id=?",
+                (data["market_id"],))
             row = await cur.fetchone()
             if not row:
                 await m.reply(
                     "<b>❌ Ошибка</b>\n<blockquote>Лот не найден!</blockquote>",
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
                     parse_mode="HTML"
                 )
                 await state.clear()
@@ -5021,7 +5167,8 @@ async def buy_qty(m: types.Message, state: FSMContext):
         )
         await m.reply(
             text,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
             parse_mode="HTML"
         )
         await state.clear()  # Очищаем состояние после некорректного ввода
@@ -5044,6 +5191,7 @@ async def buy_qty(m: types.Message, state: FSMContext):
     )
     await state.update_data(qty=qty)
 
+
 @dp.callback_query(lambda c: c.data.startswith("m_confirmbuy_"))
 async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
     try:
@@ -5051,7 +5199,8 @@ async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
     except (ValueError, IndexError):
         await c.message.edit_text(
             "<b>❌ Ошибка</b>\n<blockquote>Некорректный формат запроса! 😿</blockquote>",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
             parse_mode="HTML"
         )
         await c.answer()
@@ -5070,7 +5219,8 @@ async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
         if not row:
             await c.message.edit_text(
                 "<b>❌ Ошибка</b>\n<blockquote>Лот не найден!</blockquote>",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
                 parse_mode="HTML"
             )
             await c.answer()
@@ -5081,7 +5231,8 @@ async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
         if seller_id == user_id:
             await c.message.edit_text(
                 "<b>❌ Ошибка</b>\n<blockquote>Вы не можете купить свой собственный лот! 😿</blockquote>",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
                 parse_mode="HTML"
             )
             await c.answer()
@@ -5090,7 +5241,8 @@ async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
         if qty > available_qty:
             await c.message.edit_text(
                 "<b>❌ Ошибка</b>\n<blockquote>Недостаточно питомцев в лоте!</blockquote>",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
                 parse_mode="HTML"
             )
             await c.answer()
@@ -5104,7 +5256,8 @@ async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
             if user_coins < total_cost:
                 await c.message.edit_text(
                     "<b>❌ Ошибка</b>\n<blockquote>Недостаточно GG для покупки! 😿</blockquote>",
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_0")]]),
                     parse_mode="HTML"
                 )
                 await c.answer()
@@ -5155,11 +5308,13 @@ async def buy_confirm_cb(c: types.CallbackQuery, state: FSMContext):
     )
     await c.message.edit_text(
         text,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
         parse_mode="HTML"
     )
     await state.clear()
     await c.answer()
+
 
 @dp.callback_query(lambda c: c.data.startswith("m_sell_"))
 async def sell_cb(c: types.CallbackQuery, state: FSMContext):
@@ -5173,7 +5328,8 @@ async def sell_cb(c: types.CallbackQuery, state: FSMContext):
         print(f"Error parsing callback_data: {c.data}, error: {e}")
         await c.message.edit_text(
             "<b>❌ Ошибка</b>\n<blockquote>Некорректный формат запроса! 😿</blockquote>",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
             parse_mode="HTML"
         )
         await c.answer()
@@ -5192,7 +5348,8 @@ async def sell_cb(c: types.CallbackQuery, state: FSMContext):
         if have < 1:
             await c.message.edit_text(
                 "<b>❌ НЕДОСТАТОЧНО ПИТОМЦЕВ ❌</b>\n<blockquote>У тебя нет питомцев этого вида.</blockquote>",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_{page}")]]),
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_{page}")]]),
                 parse_mode="HTML"
             )
             await c.answer()
@@ -5209,12 +5366,14 @@ async def sell_cb(c: types.CallbackQuery, state: FSMContext):
     )
     await c.message.edit_text(
         text,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_{page}")]]),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_{page}")]]),
         parse_mode="HTML"
     )
     await state.update_data(animal_type=animal_type, page=page, max_qty=have)
     await state.set_state(MarketState.SELL_QTY)
     await c.answer()
+
 
 @dp.message(MarketState.SELL_QTY)
 async def sell_qty(m: types.Message, state: FSMContext):
@@ -5237,7 +5396,8 @@ async def sell_qty(m: types.Message, state: FSMContext):
         )
         await m.reply(
             text,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_{data['page']}")]]),
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_{data['page']}")]]),
             parse_mode="HTML"
         )
         await state.clear()  # Очищаем состояние после некорректного ввода
@@ -5251,11 +5411,13 @@ async def sell_qty(m: types.Message, state: FSMContext):
     )
     await m.reply(
         text,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_{data['page']}")]]),
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{data['animal_type']}_{data['page']}")]]),
         parse_mode="HTML"
     )
     await state.update_data(qty=qty)
     await state.set_state(MarketState.SELL_PRICE)
+
 
 @dp.message(SellPetState.waiting_quantity)
 async def process_sell_quantity(message: Message, state: FSMContext):
@@ -5299,7 +5461,8 @@ async def process_sell_quantity(message: Message, state: FSMContext):
             )
         await message.reply(
             text,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="inv_pets_back")]]),
             parse_mode="HTML"
         )
         await state.clear()
@@ -5333,6 +5496,7 @@ async def process_sell_quantity(message: Message, state: FSMContext):
     )
     await message.reply(text, parse_mode="HTML")
 
+
 @dp.callback_query(lambda c: c.data.startswith("m_confirmsell_"))
 async def confirm_sell(c: types.CallbackQuery):
     pid, qty, price = map(int, c.data.split("_")[2:])
@@ -5348,7 +5512,8 @@ async def confirm_sell(c: types.CallbackQuery):
         if have < qty:
             await c.message.edit_text(
                 "<b>❌ НЕДОСТАТОЧНО ПИТОМЦЕВ ❌</b>\n<blockquote>У тебя нет столько питомцев этого вида.</blockquote>",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="m_back")]]),
                 parse_mode="HTML"
             )
             await c.answer()
@@ -5369,15 +5534,18 @@ async def confirm_sell(c: types.CallbackQuery):
     await c.message.edit_text(
         f"<b>🎉 ЛОТ ВЫСТАВЛЕН 🎉</b>\n"
         f"<blockquote>{name} × <code>{qty}</code> за <code>{format_balance(price)} GG</code></blockquote>",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_0")]]),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data=f"m_type_{animal_type}_0")]]),
         parse_mode="HTML"
     )
     await c.answer()
+
 
 @dp.callback_query(lambda c: c.data == "m_back")
 async def back_cb(c: types.CallbackQuery):
     await show_main(c)
     await c.answer()
+
 
 # Админ-команда /addcase
 @dp.message(Command("addcase"))
@@ -5409,6 +5577,7 @@ async def cmd_addcase(message: Message):
         f"✅ Добавлено <code>{quantity}</code> шт. к кейсу ID <code>{case_id}</code> ({case[1]}).",
         parse_mode="HTML"
     )
+
 
 # ================== РЕГИСТРАЦИЯ ХЕНДЛЕРОВ ==================
 dp.message.register(cmd_case, Command("case"))
@@ -5455,12 +5624,7 @@ dp.callback_query.register(confirm_sell, lambda c: c.data.startswith("m_confirms
 dp.callback_query.register(back_cb, lambda c: c.data == "m_back")
 
 
-
-
-
-
 # Команда /ver (верификация пользователя)
-
 
 
 @dp.message(Command("ver"))
@@ -5539,6 +5703,7 @@ async def cmd_ver(message: types.Message):
             parse_mode="HTML"
         )
 
+
 @dp.message(lambda m: m.text and m.text.lower() in ["профиль", "я"])
 async def txt_profile(message: types.Message):
     await cmd_profile(message)
@@ -5547,7 +5712,7 @@ async def txt_profile(message: types.Message):
 # =================================== СТАТУС ===========================
 
 # Статусы: эмодзи и цены
-emojis = ["", "⚡", "🔥", "💥", "🦾", "💣", "🚀", "♠️", "👻", "👑", "💎", "🌟" ,  "🎰", "🎩"]
+emojis = ["", "⚡", "🔥", "💥", "🦾", "💣", "🚀", "♠️", "👻", "👑", "💎", "🌟", "🎰", "🎩"]
 emoji_prices = [
     0,  # Status 0
     10000,  # Status 1
@@ -5912,7 +6077,8 @@ async def cmd_bonus(message: types.Message):
 async def txt_bonus(message: types.Message):
     await cmd_bonus(message)
 
-#=================================== ТОП ===========================
+
+# =================================== ТОП ===========================
 @dp.message(Command("top"))
 async def cmd_top(message: types.Message):
     user_id = message.from_user.id
@@ -5927,7 +6093,8 @@ async def cmd_top(message: types.Message):
         user_coins, user_status = user_row
 
         # Топ-10 игроков (исключая скрытых)
-        cursor = await db.execute("SELECT user_id, coins, status FROM users WHERE hidden = 0 ORDER BY coins DESC LIMIT 10")
+        cursor = await db.execute(
+            "SELECT user_id, coins, status FROM users WHERE hidden = 0 ORDER BY coins DESC LIMIT 10")
         rows = await cursor.fetchall()
 
         # Поиск места текущего игрока (если не скрыт)
@@ -6157,7 +6324,8 @@ async def top_balance(call: types.CallbackQuery):
         user_coins, user_status = user_row
 
         # Топ-10 игроков (исключая скрытых)
-        cursor = await db.execute("SELECT user_id, coins, status FROM users WHERE hidden = 0 ORDER BY coins DESC LIMIT 10")
+        cursor = await db.execute(
+            "SELECT user_id, coins, status FROM users WHERE hidden = 0 ORDER BY coins DESC LIMIT 10")
         rows = await cursor.fetchall()
 
         # Поиск места текущего игрока (если не скрыт)
@@ -6223,8 +6391,7 @@ async def cmd_hide(message: types.Message):
         await message.reply(f"✅ Вы {status} в топах. Для изменения используйте /hide снова.")
 
 
-
-#=================================== МОНЕТА ===========================
+# =================================== МОНЕТА ===========================
 def get_coin_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -6237,6 +6404,7 @@ def get_coin_keyboard():
             ]
         ]
     )
+
 
 @dp.message(Command("coin"))
 async def cmd_coin(message: types.Message):
@@ -6261,7 +6429,8 @@ async def cmd_coin(message: types.Message):
             await message.reply("❗ Минимальная ставка — <b>10</b> монет.", parse_mode="HTML")
             return
         if user_money < bet:
-            await message.reply(f"Недостаточно монет для ставки. Ваш баланс: <code>{format_balance(user_money)}</code>", parse_mode="HTML")
+            await message.reply(f"Недостаточно монет для ставки. Ваш баланс: <code>{format_balance(user_money)}</code>",
+                                parse_mode="HTML")
             return
         await db.execute("UPDATE users SET coins = coins - ? WHERE user_id = ?", (bet, user_id))
         await db.execute("INSERT OR REPLACE INTO coin_game (user_id, bet) VALUES (?, ?)", (user_id, bet))
@@ -6272,6 +6441,7 @@ async def cmd_coin(message: types.Message):
         reply_markup=get_coin_keyboard(),
         parse_mode="HTML"
     )
+
 
 @dp.message(lambda m: m.text and m.text.lower().startswith("монета"))
 async def txt_coin(message: types.Message):
@@ -6296,7 +6466,8 @@ async def txt_coin(message: types.Message):
             await message.reply("❗ Минимальная ставка — <b>10</b> монет.", parse_mode="HTML")
             return
         if user_money < bet:
-            await message.reply(f"Недостаточно монет для ставки. Ваш баланс: <code>{format_balance(user_money)}</code>", parse_mode="HTML")
+            await message.reply(f"Недостаточно монет для ставки. Ваш баланс: <code>{format_balance(user_money)}</code>",
+                                parse_mode="HTML")
             return
         await db.execute("UPDATE users SET coins = coins - ? WHERE user_id = ?", (bet, user_id))
         await db.execute("INSERT OR REPLACE INTO coin_game (user_id, bet) VALUES (?, ?)", (user_id, bet))
@@ -6307,6 +6478,7 @@ async def txt_coin(message: types.Message):
         reply_markup=get_coin_keyboard(),
         parse_mode="HTML"
     )
+
 
 @dp.callback_query(lambda c: c.data in ["coin_heads", "coin_tails"])
 async def coin_callback(call: types.CallbackQuery):
@@ -6329,7 +6501,8 @@ async def coin_callback(call: types.CallbackQuery):
         coin_result = user_choice if win else ("coin_tails" if user_choice == "coin_heads" else "coin_heads")
         if win:
             prize = int(bet * 1.9)
-            await db.execute("UPDATE users SET coins = coins + ?, win_amount = win_amount + ? WHERE user_id = ?", (prize, prize, user_id))
+            await db.execute("UPDATE users SET coins = coins + ?, win_amount = win_amount + ? WHERE user_id = ?",
+                             (prize, prize, user_id))
             await call.message.edit_text(
                 f"🎉 <b>Победа!</b>\n"
                 f"Выпало: <b>{'🦅 Орел' if coin_result == 'coin_heads' else '🌑 Решка'}</b>\n"
@@ -6349,6 +6522,7 @@ async def coin_callback(call: types.CallbackQuery):
         await db.execute("DELETE FROM coin_game WHERE user_id = ?", (user_id,))
         await db.commit()
     await call.answer()
+
 
 @dp.callback_query(lambda c: c.data == "coin_cancel")
 async def coin_cancel_callback(call: types.CallbackQuery):
@@ -6495,7 +6669,6 @@ async def calculate_avg_fezcoin_price():
         return 6070000  # Fallback
 
 
-
 # Функция для получения доступных питомцев (не в маркете)
 async def get_available_pets(user_id: int):
     async with aiosqlite.connect(MARKET_DB_PATH) as db:
@@ -6624,7 +6797,8 @@ async def render_boss_menu(obj: Union[types.Message, types.CallbackQuery], state
                     last_message_state[message_key] = {"hash": new_state_hash}
         await obj.answer()
     else:
-        new_msg = await obj.reply(text, reply_markup=kb, parse_mode="HTML")  # Для сообщений используй reply вместо answer
+        new_msg = await obj.reply(text, reply_markup=kb,
+                                  parse_mode="HTML")  # Для сообщений используй reply вместо answer
         message_key = f"{new_msg.chat.id}_{new_msg.message_id}"
         reply_markup_str = str(kb.inline_keyboard) if kb else ""
         new_state_hash = md5((text + reply_markup_str).encode()).hexdigest()
@@ -7101,6 +7275,7 @@ async def handle_pets_navigation(call: types.CallbackQuery, state: FSMContext):
             last_message_state[f"{new_msg.chat.id}_{new_msg.message_id}"] = {"hash": new_state_hash}
     await call.answer()
 
+
 # Выбор питомца для атаки
 @dp.callback_query(lambda c: c.data.startswith("attack_pet_"))
 async def handle_attack_pet(call: types.CallbackQuery, state: FSMContext):
@@ -7346,6 +7521,7 @@ async def process_attack_quantity(message: types.Message, state: FSMContext):
     await message.reply(text, reply_markup=kb, parse_mode="HTML")
     await state.clear()
 
+
 # Обменник опыта (обновлённый)
 @dp.callback_query(lambda c: c.data == "boss_exchange")
 async def handle_boss_exchange(call: types.CallbackQuery, state: FSMContext):
@@ -7397,6 +7573,7 @@ async def handle_boss_exchange(call: types.CallbackQuery, state: FSMContext):
             last_message_state[f"{new_msg.chat.id}_{new_msg.message_id}"] = {"hash": new_state_hash}
     await call.answer()
 
+
 # Обработчик кнопки "Обменять весь"
 @dp.callback_query(lambda c: c.data == "exchange_full")
 async def exchange_full(call: types.CallbackQuery, state: FSMContext):
@@ -7426,6 +7603,7 @@ async def exchange_full(call: types.CallbackQuery, state: FSMContext):
         await call.message.answer(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
 
+
 # Обработчик кнопки "Ввести количество"
 @dp.callback_query(lambda c: c.data == "exchange_input")
 async def exchange_input(call: types.CallbackQuery, state: FSMContext):
@@ -7447,6 +7625,7 @@ async def exchange_input(call: types.CallbackQuery, state: FSMContext):
     except Exception as e:
         await call.message.answer(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
+
 
 # Обработчик ввода количества опыта
 @dp.message(BossStates.exchange_amount)
@@ -7489,6 +7668,7 @@ async def process_exchange_amount(message: types.Message, state: FSMContext):
     ])
     await message.reply(text, reply_markup=kb, parse_mode="HTML")
     await state.clear()  # Очищаем после успеха
+
 
 # Подтверждение обмена (обновлённый, для любого количества)
 @dp.callback_query(lambda c: c.data.startswith("confirm_exchange_"))
@@ -7543,6 +7723,7 @@ async def confirm_exchange(call: types.CallbackQuery, state: FSMContext):
             last_message_state[message_key] = {"hash": new_state_hash}
     await call.answer()
 
+
 # Обработчик кнопки "⬅️ Назад" из подменю обмена (сбрасывает состояние и возвращает в меню)
 @dp.callback_query(lambda c: c.data == "exchange_back")
 async def exchange_back_handler(call: types.CallbackQuery, state: FSMContext):
@@ -7558,7 +7739,8 @@ async def exchange_back_handler(call: types.CallbackQuery, state: FSMContext):
                 "❌ <i>У вас нет опыта для обмена.</i>\n"
                 "➡️ Нанесите урон боссу, чтобы заработать <b>опыт</b>! Каждый удар приносит опыт, равный нанесённому урону."
             )
-            kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="boss_main")]])
+            kb = InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="boss_main")]])
         else:
             avg_price = await calculate_avg_fezcoin_price()
             full_gg = exp * avg_price
@@ -7586,7 +7768,9 @@ async def exchange_back_handler(call: types.CallbackQuery, state: FSMContext):
             # Fallback: новое сообщение, если edit не сработал
             await call.message.answer(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
-#=================================== БОКС ===========================
+
+
+# =================================== БОКС ===========================
 BOX_PRIZES = {
     0: [150, 300, 450, 600, 750, 900, 1050, 1200, 1350, 1500],
     1: [300, 600, 9000, 1200, 1500, 1800, 2100, 2400, 2700, 3000],
@@ -7605,9 +7789,9 @@ BOX_PRIZES = {
 }
 
 
-
 class BoxStates(StatesGroup):
     choosing = State()
+
 
 @dp.message(Command("box"))
 @dp.message(lambda m: m.text and m.text.lower() in ["бокс", "бокс"])
@@ -7667,10 +7851,11 @@ async def cmd_box(message: types.Message, state: FSMContext):
     await message.reply(
         f"🎁 <b>Открытие коробки</b> 🎁\n\n"
         f"<b>Выберите одну из шести коробок! В пяти из них спрятаны монеты, а одна пуста.</b>\n"
-        f"🐾 <b>Бонус от питомцев:</b> +{total_pet_bonus*100:.1f}%",
+        f"🐾 <b>Бонус от питомцев:</b> +{total_pet_bonus * 100:.1f}%",
         reply_markup=kb,
         parse_mode="HTML"
     )
+
 
 @dp.callback_query(lambda c: c.data.startswith("box_open:"))
 async def box_open_callback(call: types.CallbackQuery, state: FSMContext):
@@ -7727,9 +7912,10 @@ async def box_open_callback(call: types.CallbackQuery, state: FSMContext):
 
 # =================================== КУБИК ===========================
 
-#=================================== КУБИК (ОБНОВЛЁННЫЙ СТИЛЬ) ===========================
+# =================================== КУБИК (ОБНОВЛЁННЫЙ СТИЛЬ) ===========================
 
 last_dice_time: dict[int, float] = {}
+
 
 async def dice_usage(name: str) -> str:
     return (
@@ -7746,6 +7932,7 @@ async def dice_usage(name: str) -> str:
         f"   • <code>/dice 10к ч</code>\n\n"
         f"🎯 <i>Минимальная ставка — 10 GG. Удачи!</i>"
     )
+
 
 def parse_dice_mode(arg: str):
     t = arg.lower().strip()
@@ -7893,7 +8080,9 @@ async def cmd_dice(message: types.Message):
 @dp.message(lambda m: m.text and m.text.lower().startswith("кубик"))
 async def txt_dice(message: types.Message):
     await cmd_dice(message)
-#=================================== КОСТИ ===========================
+
+
+# =================================== КОСТИ ===========================
 
 async def cmd_cubes(message: types.Message):
     user_id = message.from_user.id
@@ -7964,7 +8153,7 @@ async def cmd_cubes(message: types.Message):
         pred_type = "odd"
     else:
         await message.reply("❌ Неверный тип ставки. Используйте число (2-12), больше, меньше, чет или нечет.",
-                           parse_mode="HTML")
+                            parse_mode="HTML")
         return
 
     # Определение шанса выигрыша
@@ -8068,7 +8257,8 @@ async def cmd_cubes(message: types.Message):
 async def txt_cubes(message: types.Message):
     await cmd_cubes(message)
 
-#=================================== ВЫДАЧА ===========================
+
+# =================================== ВЫДАЧА ===========================
 
 
 @dp.message(Command("hhh"))
@@ -8090,7 +8280,9 @@ async def cmd_hhh(message: types.Message):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE users SET coins = coins + ? WHERE user_id = ?", (amount, target_id))
         await db.commit()
-    await message.reply(f"✅ Пользователю <code>{target_id}</code> начислено <b>{format_balance(amount)}</b> монет.", parse_mode="HTML")
+    await message.reply(f"✅ Пользователю <code>{target_id}</code> начислено <b>{format_balance(amount)}</b> монет.",
+                        parse_mode="HTML")
+
 
 @dp.message(Command("uhhh"))
 async def cmd_uhhh(message: types.Message):
@@ -8111,21 +8303,25 @@ async def cmd_uhhh(message: types.Message):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE users SET coins = coins - ? WHERE user_id = ?", (amount, target_id))
         await db.commit()
-    await message.reply(f"❌ У пользователя <code>{target_id}</code> снято <b>{format_balance(amount)}</b> монет.", parse_mode="HTML")
+    await message.reply(f"❌ У пользователя <code>{target_id}</code> снято <b>{format_balance(amount)}</b> монет.",
+                        parse_mode="HTML")
 
 
-
-#=================================== ДУЭЛЬ ===========================
+# =================================== ДУЭЛЬ ===========================
 
 active_duel_tasks = set()
+
 
 class DuelStates(StatesGroup):
     waiting_challenger_choice = State()
     waiting_opponent_choice = State()
 
+
 @dp.message(lambda m: m.text and m.text.lower().startswith(("/duel", "дуэль", "дуель")))
 async def txt_duel(message: types.Message, state: FSMContext):
     await cmd_duel(message, state)
+
+
 def determine_winner(challenger_choice: str, opponent_choice: str) -> str:
     """Определяет победителя в игре 'камень-ножницы-бумага'."""
     if challenger_choice == opponent_choice:
@@ -8139,7 +8335,9 @@ def determine_winner(challenger_choice: str, opponent_choice: str) -> str:
         return "win_challenger"
     return "win_opponent"
 
-async def duel_timeout(duel_id: int, challenger_id: int, opponent_id: int, stake: int, message_id: int, chat_id: int, state: FSMContext, opponent_state: FSMContext):
+
+async def duel_timeout(duel_id: int, challenger_id: int, opponent_id: int, stake: int, message_id: int, chat_id: int,
+                       state: FSMContext, opponent_state: FSMContext):
     """Обработчик таймаута дуэли (5 минут)."""
     await asyncio.sleep(300)  # 5 минут
     async with aiosqlite.connect(DB_PATH) as db:
@@ -8195,9 +8393,6 @@ async def duel_timeout(duel_id: int, challenger_id: int, opponent_id: int, stake
     await state.clear()
     if opponent_id:
         await opponent_state.clear()
-
-
-
 
 
 @dp.message(lambda m: m.text and m.text.lower().startswith(("/duel")))
@@ -8309,7 +8504,6 @@ async def cmd_duel(message: types.Message, state: FSMContext):
         await db.commit()
 
 
-
 @dp.callback_query(lambda c: c.data.startswith("duel_accept:"))
 async def duel_accept_callback(call: types.CallbackQuery, state: FSMContext):
     user_id = call.from_user.id
@@ -8405,7 +8599,9 @@ async def duel_accept_callback(call: types.CallbackQuery, state: FSMContext):
     # Запускаем таймер
     opponent_state_key = StorageKey(bot_id=bot.id, chat_id=chat_id, user_id=user_id)
     opponent_state = FSMContext(dp.storage, key=opponent_state_key)
-    asyncio.create_task(duel_timeout(duel_id, challenger_id, user_id, stake, message_id, chat_id, state, opponent_state))
+    asyncio.create_task(
+        duel_timeout(duel_id, challenger_id, user_id, stake, message_id, chat_id, state, opponent_state))
+
 
 @dp.callback_query(lambda c: c.data.startswith("duel_cancel:"))
 async def duel_cancel_callback(call: types.CallbackQuery):
@@ -8461,6 +8657,7 @@ async def duel_cancel_callback(call: types.CallbackQuery):
         await call.answer("❌ Ошибка при отмене дуэли.", show_alert=True)
         return
     await call.answer()
+
 
 @dp.callback_query(lambda c: c.data.startswith("duel_choice:"))
 async def duel_choice_callback(call: types.CallbackQuery, state: FSMContext):
@@ -8543,7 +8740,8 @@ async def duel_choice_callback(call: types.CallbackQuery, state: FSMContext):
             await opponent_state.update_data(duel_id=duel_id, message_id=message_id, chat_id=chat_id)
 
             # Запускаем таймер
-            asyncio.create_task(duel_timeout(duel_id, challenger_id, opponent_id, stake, message_id, chat_id, state, opponent_state))
+            asyncio.create_task(
+                duel_timeout(duel_id, challenger_id, opponent_id, stake, message_id, chat_id, state, opponent_state))
             await call.answer()
             return
 
@@ -8573,16 +8771,16 @@ async def duel_choice_callback(call: types.CallbackQuery, state: FSMContext):
                 winner_id = challenger_id
                 result_text = f"Победил {challenger_name}!"
                 await db.execute("UPDATE users SET coins = coins + ?, win_amount = win_amount + ? WHERE user_id = ?",
-                                (total_stake, total_stake - stake, challenger_id))
+                                 (total_stake, total_stake - stake, challenger_id))
                 await db.execute("UPDATE users SET lose_amount = lose_amount + ? WHERE user_id = ?",
-                                (stake, opponent_id))
+                                 (stake, opponent_id))
             elif result == "win_opponent":
                 winner_id = opponent_id
                 result_text = f"Победил {opponent_name}!"
                 await db.execute("UPDATE users SET coins = coins + ?, win_amount = win_amount + ? WHERE user_id = ?",
-                                (total_stake, total_stake - stake, opponent_id))
+                                 (total_stake, total_stake - stake, opponent_id))
                 await db.execute("UPDATE users SET lose_amount = lose_amount + ? WHERE user_id = ?",
-                                (stake, challenger_id))
+                                 (stake, challenger_id))
             else:
                 # Ничья, возвращаем ставки
                 await db.execute("UPDATE users SET coins = coins + ? WHERE user_id = ?", (stake, challenger_id))
@@ -8628,9 +8826,7 @@ async def duel_choice_callback(call: types.CallbackQuery, state: FSMContext):
     await call.answer("❌ Вы уже сделали выбор или это не ваш ход.", show_alert=True)
 
 
-
-
-#=================================== РЫБАЛКА ===========================
+# =================================== РЫБАЛКА ===========================
 
 # 🎣 Рыбалка
 FISH_PLACES = [
@@ -8641,7 +8837,7 @@ FISH_PLACES = [
 ]
 
 FISH_RESULTS = [
-    ("❌ Сорвалась! x0", 0, 4),        # (название, множитель, вес)
+    ("❌ Сорвалась! x0", 0, 4),  # (название, множитель, вес)
     ("🐟 Карасик x0.5", 0.5, 4),
     ("🐠 Форель x1", 1, 4),
     ("🐡 Сом x2", 2, 1),
@@ -8768,6 +8964,7 @@ async def fish_cancel_callback(call: types.CallbackQuery):
             await call.message.edit_text("❌ Игра отменена.", parse_mode="HTML")
     await call.answer()
 
+
 # ============================== MINER GAME ==============================
 
 # =================================== БАШНЯ ===========================
@@ -8780,8 +8977,10 @@ TOWER_MULTIPLIERS = {
     4: [3.0, 5.0, 8.0, 13.0, 20.0, 30.0, 45.0, 70.0, 100.0]
 }
 # In-memory game state and cooldowns
-active_tower_games = {} # game_id -> state
-tower_cooldowns = {} # user_id -> timestamp
+active_tower_games = {}  # game_id -> state
+tower_cooldowns = {}  # user_id -> timestamp
+
+
 def build_tower_keyboard(game_id: str, state: dict) -> InlineKeyboardMarkup:
     """Generate the Tower game keyboard (1x5 for current level, past levels below)."""
     level = state["level"]
@@ -8814,6 +9013,8 @@ def build_tower_keyboard(game_id: str, state: dict) -> InlineKeyboardMarkup:
         control_buttons.append(InlineKeyboardButton(text="💰 Забрать приз", callback_data=f"tower_collect:{game_id}"))
     kb.append(control_buttons)
     return InlineKeyboardMarkup(inline_keyboard=kb)
+
+
 def build_final_tower_keyboard(game_id: str, state: dict) -> InlineKeyboardMarkup:
     """Generate the final Tower game keyboard with fake mine logic."""
     real_bombs = state["real_bombs"]
@@ -8870,10 +9071,14 @@ def build_final_tower_keyboard(game_id: str, state: dict) -> InlineKeyboardMarku
                     row_btns.append(InlineKeyboardButton(text=emoji, callback_data="noop"))
         kb.append(row_btns)
     return InlineKeyboardMarkup(inline_keyboard=kb)
+
+
 @dp.message(lambda m: m.text and m.text.lower().startswith("башня"))
 async def txt_tower(message: types.Message):
     """Alternative command to start Tower game."""
     await cmd_tower(message)
+
+
 @dp.message(Command("tower"))
 async def cmd_tower(message: types.Message):
     """Start a new Tower game with specified bet and optional bomb count."""
@@ -8901,7 +9106,8 @@ async def cmd_tower(message: types.Message):
         cursor = await db.execute("SELECT coins FROM users WHERE user_id = ?", (user_id,))
         row = await cursor.fetchone()
         if not row:
-            await message.reply("❌ <b>Ошибка:</b> Вы не зарегистрированы! 😕 Введите <code>/start</code>.", parse_mode="HTML")
+            await message.reply("❌ <b>Ошибка:</b> Вы не зарегистрированы! 😕 Введите <code>/start</code>.",
+                                parse_mode="HTML")
             return
         coins = row[0]
     # Validate bet
@@ -8974,6 +9180,8 @@ async def cmd_tower(message: types.Message):
         reply_markup=kb,
         parse_mode="HTML"
     )
+
+
 @dp.callback_query(lambda c: c.data.startswith("tower_choose:"))
 async def tower_choose(call: types.CallbackQuery):
     """Handle cell selection in Tower game."""
@@ -9003,11 +9211,11 @@ async def tower_choose(call: types.CallbackQuery):
         state["loss_type"] = "fake" if is_fake else "real"
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute("UPDATE users SET lose_amount = lose_amount + ? WHERE user_id = ?",
-                            (state["bet"], state["user_id"]))
+                             (state["bet"], state["user_id"]))
             await db.commit()
         kb = build_final_tower_keyboard(game_id, state)
         await call.message.edit_text(
-            f"💥 <b>БАМ! Вы попали на { 'мину' if is_fake else 'мину' }!</b> 😢\n"
+            f"💥 <b>БАМ! Вы попали на {'мину' if is_fake else 'мину'}!</b> 😢\n"
             f"💸 <b>Ставка:</b> <code>{format_balance(state['bet'])}</code> GG\n"
             f"💣 <b>Бомб на уровень:</b> {state['bombs_count']}\n"
             f"<i>Игра окончена. Попробуйте снова!</i> 🔄",
@@ -9024,7 +9232,7 @@ async def tower_choose(call: types.CallbackQuery):
         win = int(state["bet"] * TOWER_MULTIPLIERS[state["bombs_count"]][8])
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute("UPDATE users SET coins = coins + ?, win_amount = win_amount + ? WHERE user_id = ?",
-                            (win, win, state["user_id"]))
+                             (win, win, state["user_id"]))
             await db.commit()
         state["lost"] = False
         state["loss_type"] = None
@@ -9056,6 +9264,8 @@ async def tower_choose(call: types.CallbackQuery):
         parse_mode="HTML"
     )
     await call.answer()
+
+
 @dp.callback_query(lambda c: c.data.startswith("tower_cancel:"))
 async def tower_cancel(call: types.CallbackQuery):
     """Cancel the Tower game and refund the bet."""
@@ -9083,6 +9293,8 @@ async def tower_cancel(call: types.CallbackQuery):
     )
     active_tower_games.pop(game_id, None)
     await call.answer()
+
+
 @dp.callback_query(lambda c: c.data.startswith("tower_collect:"))
 async def tower_collect(call: types.CallbackQuery):
     """Collect winnings and end the Tower game."""
@@ -9100,7 +9312,7 @@ async def tower_collect(call: types.CallbackQuery):
     win = int(state["bet"] * TOWER_MULTIPLIERS[state["bombs_count"]][state["level"] - 1])
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE users SET coins = coins + ?, win_amount = win_amount + ? WHERE user_id = ?",
-                        (win, win, state["user_id"]))
+                         (win, win, state["user_id"]))
         await db.commit()
     state["lost"] = False
     state["loss_type"] = None
@@ -9116,7 +9328,9 @@ async def tower_collect(call: types.CallbackQuery):
     active_tower_games.pop(game_id, None)
     await call.answer()
 
+
 from collections import Counter
+
 # =================================== ФЕРМА ===========================
 
 
@@ -9837,9 +10051,11 @@ dp.callback_query.register(handle_back_to_farm, F.data == "back_to_farm")
 
 active_roulette_players = set()  # Для предотвращения множественных игр
 
+
 # Вспомогательные функции для рулетки
 def spin_roulette():
     return random.randint(0, 36)
+
 
 def get_color(number):
     if number == 0:
@@ -9847,8 +10063,10 @@ def get_color(number):
     red_numbers = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
     return "красный" if number in red_numbers else "черный"
 
+
 def is_even(number):
     return number % 2 == 0 and number != 0
+
 
 # Команда рулетки
 @dp.message(Command("roulette"))
@@ -9976,9 +10194,11 @@ async def cmd_roulette(message: types.Message):
         async with aiosqlite.connect(DB_PATH) as db:
             if payout > 0:
                 await db.execute("UPDATE users SET coins = coins + ? WHERE user_id = ?", (payout, user_id))
-                await db.execute("UPDATE users SET win_amount = win_amount + ? WHERE user_id = ?", (payout - bet_amount, user_id))
+                await db.execute("UPDATE users SET win_amount = win_amount + ? WHERE user_id = ?",
+                                 (payout - bet_amount, user_id))
             else:
-                await db.execute("UPDATE users SET lose_amount = lose_amount + ? WHERE user_id = ?", (bet_amount, user_id))
+                await db.execute("UPDATE users SET lose_amount = lose_amount + ? WHERE user_id = ?",
+                                 (bet_amount, user_id))
             await db.commit()
 
             # Получаем новый баланс
@@ -10005,6 +10225,7 @@ async def cmd_roulette(message: types.Message):
 
 class BankDepositStates(StatesGroup):
     Amount = State()
+
 
 async def cmd_bank(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
@@ -10176,10 +10397,12 @@ async def cmd_bank(message: types.Message, state: FSMContext):
         parse_mode="HTML"
     )
 
+
 # Обработчик текстового ввода "банк"
 @dp.message(lambda m: m.text and m.text.lower().startswith("банк"))
 async def txt_bank(message: types.Message, state: FSMContext):
     await cmd_bank(message, state)
+
 
 # Обработчик выбора срока депозита
 @dp.callback_query(lambda c: c.data.startswith("bank_term_"))
@@ -10264,6 +10487,7 @@ async def bank_term_callback(call: types.CallbackQuery, state: FSMContext):
     )
     await call.answer()
 
+
 # Обработчик закрытия депозита
 @dp.callback_query(lambda c: c.data.startswith("bank_close_"))
 async def bank_close_callback(call: types.CallbackQuery):
@@ -10340,6 +10564,7 @@ async def bank_close_callback(call: types.CallbackQuery):
     await call.message.edit_text(response, parse_mode="HTML", reply_markup=markup)
     await call.answer()
 
+
 # Обработчик кнопки "Мои депозиты"
 @dp.callback_query(lambda c: c.data == "bank_back")
 async def bank_back_callback(call: types.CallbackQuery):
@@ -10408,13 +10633,14 @@ async def bank_back_callback(call: types.CallbackQuery):
     await call.message.edit_text(response, reply_markup=markup, parse_mode="HTML")
     await call.answer()
 
+
 @dp.message(Command("bank"))
 async def cmd_bank_handler(message: types.Message, state: FSMContext):
     await cmd_bank(message, state)
 
+
 # =================================== КОЛЕСО ФОРТУНЫ (WHEEL) ===========================
 # =================================== КОЛЕСО (НОВАЯ ВЕРСИЯ) ===========================
-
 
 
 last_wheel = {}  # user_id: timestamp для cooldown
@@ -10428,11 +10654,13 @@ ZONES = {
     'moon': {'emoji': '🟣', 'prob': 2, 'mult': 50.0}
 }
 
+
 def generate_wheel_zone() -> str:
     """Генерирует зону по вероятностям."""
     choices = list(ZONES.keys())
     weights = [ZONES[z]['prob'] for z in choices]
     return random.choices(choices, weights=weights, k=1)[0]
+
 
 @dp.message(Command("wheel"))
 @dp.message(lambda m: m.text and m.text.lower().startswith("колесо"))
@@ -10509,6 +10737,7 @@ async def cmd_wheel(message: types.Message):
         reply_markup=kb, parse_mode="HTML"
     )
 
+
 # Обработчик выбора зоны
 @dp.callback_query(lambda c: c.data.startswith("wheel_zone_"))
 async def wheel_zone_callback(call: types.CallbackQuery):
@@ -10556,7 +10785,8 @@ async def wheel_zone_callback(call: types.CallbackQuery):
         win_amount = int(bet * mult)
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute("UPDATE users SET coins = coins + ? WHERE user_id = ?", (win_amount, user_id))
-            await db.execute("UPDATE users SET win_amount = win_amount + ? WHERE user_id = ?", (win_amount - bet, user_id))
+            await db.execute("UPDATE users SET win_amount = win_amount + ? WHERE user_id = ?",
+                             (win_amount - bet, user_id))
             await db.commit()
 
             cursor = await db.execute("SELECT coins FROM users WHERE user_id = ?", (user_id,))
@@ -10594,6 +10824,7 @@ async def wheel_zone_callback(call: types.CallbackQuery):
 
     last_wheel[user_id] = time.time()
 
+
 # Обработчик отмены
 @dp.callback_query(lambda c: c.data.startswith("wheel_cancel_"))
 async def wheel_cancel_callback(call: types.CallbackQuery):
@@ -10629,9 +10860,11 @@ async def wheel_cancel_callback(call: types.CallbackQuery):
 
     await call.answer()
 
+
 # =================================== ЛОТЕРЕЯ (LOTTERY) ===========================
 
 LOTTERY_ICONS = ['🍒', '🍋', '🍉', '🔔', '⭐']  # Иконки для слотов (можно изменить)
+
 
 @dp.message(Command("lottery"))
 @dp.message(lambda m: m.text and m.text.lower().startswith("лотерея"))
@@ -10695,7 +10928,8 @@ async def cmd_lottery(message: types.Message):
             parse_mode="HTML"
         )
 
-#=================================== ПЕРЕВОД ДЕНЕГ ===========================
+
+# =================================== ПЕРЕВОД ДЕНЕГ ===========================
 
 async def handle_transfer_logic(message: types.Message, transfer_amount: int, target_id: int, source_id: int):
     """Основная логика для перевода средств."""
@@ -10711,7 +10945,8 @@ async def handle_transfer_logic(message: types.Message, transfer_amount: int, ta
             return
         source_balance = source_result[0]
         if source_balance < transfer_amount:
-            await message.reply(f"❌ Недостаточно GG. Ваш баланс: <code>{format_balance(source_balance)}</code>", parse_mode="HTML")
+            await message.reply(f"❌ Недостаточно GG. Ваш баланс: <code>{format_balance(source_balance)}</code>",
+                                parse_mode="HTML")
             return
 
         cursor = await db.execute("SELECT user_id FROM users WHERE user_id = ?", (target_id,))
@@ -10755,6 +10990,7 @@ async def handle_transfer_logic(message: types.Message, transfer_amount: int, ta
         parse_mode="HTML"
     )
 
+
 @dp.message(Command("pay"))
 async def process_pay_command(message: types.Message):
     command_args = message.text.split()
@@ -10797,7 +11033,8 @@ async def process_pay_command(message: types.Message):
         return
 
     amount_input = command_args[1]
-    recipient_input = " ".join(command_args[2:]).removeprefix("@") if " ".join(command_args[2:]).startswith("@") else " ".join(command_args[2:])
+    recipient_input = " ".join(command_args[2:]).removeprefix("@") if " ".join(command_args[2:]).startswith(
+        "@") else " ".join(command_args[2:])
 
     parsed_amount = parse_bet_input(amount_input, sender_balance)
     if parsed_amount <= 0:
@@ -10817,6 +11054,7 @@ async def process_pay_command(message: types.Message):
             target_user_id = result_data[0]
 
     await handle_transfer_logic(message, parsed_amount, target_user_id, sender_user_id)
+
 
 @dp.message(lambda m: m.text and m.text.lower().startswith(("перевод", "pay")))
 async def process_text_transfer(message: types.Message):
@@ -10862,7 +11100,8 @@ async def process_text_transfer(message: types.Message):
     amount_input = text_args[1]
     if len(text_args) > 2:
         recipient_full_input = " ".join(text_args[2:])
-        recipient_clean = recipient_full_input.removeprefix("@") if recipient_full_input.startswith("@") else recipient_full_input
+        recipient_clean = recipient_full_input.removeprefix("@") if recipient_full_input.startswith(
+            "@") else recipient_full_input
     else:
         recipient_clean = None
 
@@ -10883,7 +11122,8 @@ async def process_text_transfer(message: types.Message):
             target_user_id = int(recipient_clean)
         else:
             async with aiosqlite.connect(DB_PATH) as db:
-                cursor = await db.execute("SELECT user_id FROM users WHERE LOWER(username) = LOWER(?)", (recipient_clean,))
+                cursor = await db.execute("SELECT user_id FROM users WHERE LOWER(username) = LOWER(?)",
+                                          (recipient_clean,))
                 result_data = await cursor.fetchone()
                 if not result_data:
                     await message.reply(f"❌ Пользователь @{recipient_clean} не найден.", parse_mode="HTML")
@@ -10899,15 +11139,16 @@ async def process_text_transfer(message: types.Message):
             parse_mode="HTML"
         )
 
+
 @dp.message(
     lambda m: (
-        m.reply_to_message is not None
-        and m.reply_to_message.from_user.id != m.from_user.id
-        and m.text is not None
-        and (
-            (m.text.startswith("/pay ") and len(m.text.split()) == 2)
-            or (m.text.lower().startswith("перевод ") and len(m.text.split()) == 2)
-        )
+            m.reply_to_message is not None
+            and m.reply_to_message.from_user.id != m.from_user.id
+            and m.text is not None
+            and (
+                    (m.text.startswith("/pay ") and len(m.text.split()) == 2)
+                    or (m.text.lower().startswith("перевод ") and len(m.text.split()) == 2)
+            )
     )
 )
 async def handle_reply_short_transfer(message: types.Message):
@@ -10942,7 +11183,8 @@ async def handle_reply_short_transfer(message: types.Message):
     target_user_id = message.reply_to_message.from_user.id
     await handle_transfer_logic(message, parsed_amount, target_user_id, sender_user_id)
 
-#=================================== СПИСОК ===========================
+
+# =================================== СПИСОК ===========================
 
 @dp.message(lambda m: m.text and m.text.lower() in ["помощь", "список"])
 async def txt_help(message: types.Message):
@@ -10965,7 +11207,7 @@ async def cmd_help(message: types.Message):
     text = (
 
         "   <b>📖 Меню и помощь</b>\n\n"
-        
+
         "🔹 <b>Основные команды:</b>\n"
         "  🔸 <b>/start</b> — Начать приключение и зарегистрироваться\n"
         "  🔸 <b>/profile</b> — Ваш профиль и статистика\n"
@@ -11020,7 +11262,7 @@ async def help_games_callback(call: types.CallbackQuery):
     text = (
 
         "   <b>🎮 Игры</b>\n\n"
-        
+
         "🎲 <b>Доступные игры:</b>\n"
         "  🪙 <b>Монета</b> — Орёл или Решка (<code>/coin ставка</code>)\n"
         "  🎣 <b>Рыбалка</b> — Закинь удочку и лови рыбу (<code>/fish ставка</code>)\n"
@@ -11069,7 +11311,7 @@ async def help_back_callback(call: types.CallbackQuery):
     text = (
 
         "   <b>📖 Меню и помощь</b>\n\n"
-        
+
         "🔹 <b>Основные команды:</b>\n"
         "  🔸 <b>/start</b> — Начать приключение и зарегистрироваться\n"
         "  🔸 <b>/profile</b> — Ваш профиль и статистика\n"
@@ -11118,7 +11360,8 @@ async def cmd_games(message: types.Message):
     )
     await message.reply(text, parse_mode="HTML")
 
-#=================================== ФУНКЦИИ ===========================
+
+# =================================== ФУНКЦИИ ===========================
 
 def format_balance(balance):
     balance = float(balance)
@@ -11130,6 +11373,7 @@ def format_balance(balance):
     formatted_balance = f"{scaled_balance:.2f}"
     suffix = "к" * group
     return formatted_balance.rstrip('0').rstrip('.') + suffix
+
 
 class CallbackAntiSpamMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
@@ -11145,12 +11389,16 @@ class CallbackAntiSpamMiddleware(BaseMiddleware):
             await db.commit()
         return await handler(event, data)
 
+
 dp.callback_query.middleware(CallbackAntiSpamMiddleware())
+
+
 def _to_decimal_safe(val):
     try:
         return Decimal(str(val))
     except Exception:
         return None
+
 
 def parse_bet_input(arg: str, user_money: Optional[Union[int, float, str, Decimal]] = None) -> int:
     if arg is None:
@@ -11186,6 +11434,7 @@ def parse_bet_input(arg: str, user_money: Optional[Union[int, float, str, Decima
         return int(result)
     except Exception:
         return -1
+
 
 @dp.message(Command("gdata"))
 async def send_data_db(message: types.Message):
@@ -11223,6 +11472,7 @@ async def send_data_db(message: types.Message):
         await message.answer("Маркет не найден!")
     except Exception as e:
         await message.answer(f"Ошибка: {e}")
+
 
 async def main():
     try:
