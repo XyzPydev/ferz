@@ -27,7 +27,7 @@ from aiogram.fsm.state import StatesGroup
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
-API_TOKEN = "8423747322:AAGwYPPEob82mQJsbYL02dJMwDXE-34JP94"
+API_TOKEN = "8423747322:AAEl08QuwBLPDh3AkfSsqL0UP4HX8cxsUws"
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
@@ -527,8 +527,8 @@ class BannedUserMiddleware(BaseMiddleware):
                     )
                     inline_keyboard = []
                     if not is_channel_subscribed:
-                        text += "📢 <b>Канал:</b> @Fezil_officiaI\n"
-                        inline_keyboard.append([InlineKeyboardButton(text="📢 Подписаться на канал", url="https://t.me/Fezil_officiaI")])
+                        text += "📢 <b>Канал:</b> @CNLferz\n"
+                        inline_keyboard.append([InlineKeyboardButton(text="📢 Подписаться на канал", url="https://t.me/CNLferz")])
                     if not is_chat_subscribed:
                         text += "💬 <b>Чат:</b> https://t.me/chatFerzister\n"
                         inline_keyboard.append([InlineKeyboardButton(text="💬 Присоединиться к чату", url="https://t.me/chatFerzister")])
@@ -566,7 +566,7 @@ class BannedUserMiddleware(BaseMiddleware):
                     "<b>❌ Ошибка подписки</b>\n\n"
                     "⚠️ Не удалось проверить подписку.\n"
                     "🔗 Убедитесь, что вы подписаны на:\n"
-                    "📢 <b>Канал:</b> @Fezil_officiaI\n"
+                    "📢 <b>Канал:</b> @CNLferz\n"
                     "💬 <b>Чат:</b> @chatFerzister\n\n"
                     "👇 Попробуйте подписаться и повторите снова!",
                     parse_mode="HTML"
@@ -3326,7 +3326,7 @@ async def cmd_slots(message: types.Message):
 
     # Отправляем dice
     dice_msg = await message.answer_dice(emoji='🎰')
-    await asyncio.sleep(2)
+    await asyncio.sleep(2.5)
 
     value = dice_msg.dice.value
 
@@ -8070,7 +8070,7 @@ async def cmd_dice(message: types.Message):
 
     # === Отправляем анимацию кубика ===
     dice_msg = await bot.send_dice(chat_id=message.chat.id, emoji="🎲")
-    await asyncio.sleep(2.8)  # Ждём завершения анимации
+    await asyncio.sleep(3.3)  # Ждём завершения анимации
 
     roll = dice_msg.dice.value
 
@@ -9026,7 +9026,7 @@ async def fish_cancel_callback(call: types.CallbackQuery):
 # ============================== MINER GAME ==============================
 # ============================== MINER GAME ==============================
 # Configuration and constants for the Miner game
-RIGGED_LOSE_CHANCE_BASE = 11  # ~9.09% шанс срабатывания фальшивой мины
+RIGGED_LOSE_CHANCE_BASE = 10  # ~10% шанс срабатывания фальшивой мины
 MINER_MULTIPLIERS = {
     3: [1.00, 1.07, 1.22, 1.4, 1.63, 1.89, 2.25, 2.63, 3.15, 3.82, 4.7, 5.87, 7.47, 9.71, 12.94, 17.79, 25.41, 38.11,
         60.91, 106.69, 213.38, 533.45, 2133.8],
@@ -9054,15 +9054,19 @@ def get_miner_keyboard(game_id: str, opened: list[int], real_mines: list[int], f
     used = set(opened) | set(real_mines)
     if exploded:
         if fake_triggered:
+            # Скрываем одну случайную реальную мину при срабатывании фальшивой
+            hidden_real = random.choice(list(real_mines))
+            mines_to_show.discard(hidden_real)
             mines_to_show.add(fake_mine)
-        elif last_index in real_mines:
-            free = [i for i in range(25) if i not in used]
-            if free:
-                mines_to_show.add(random.choice(free))
+        else:
+            # Для реальной мины показываем все реальные (визуально num_mines)
+            pass
     elif finished:
-        free = [i for i in range(25) if i not in used]
-        if free:
-            mines_to_show.add(random.choice(free))
+        # Для завершения показываем все реальные (визуально num_mines)
+        pass
+    else:
+        # Для ongoing: ничего не добавляем
+        pass
     for i in range(25):
         if i == last_index and exploded:
             face = "💥"
@@ -9130,8 +9134,8 @@ async def cmd_miner(message: types.Message):
         except ValueError:
             await message.reply("❌ <b>Ошибка:</b> Укажите <i>число мин</i> от 3 до 9! 🔢", parse_mode="HTML")
             return
-    # === ЛОГИКА: (n-1) реальных + 1 фальшивая ===
-    real_mines_count = num_mines - 1
+    # === ЛОГИКА: num_mines реальных + 1 фальшивая ===
+    real_mines_count = num_mines
     all_positions = list(range(25))
     real_mines = random.sample(all_positions, real_mines_count)
     fake_mine = random.choice([p for p in all_positions if p not in real_mines])
@@ -9182,6 +9186,10 @@ async def miner_cell(call: types.CallbackQuery):
         await call.answer("❌ Игра не найдена! 😢", show_alert=True)
         return
     if game["exploded"] or game["finished"]:
+        # Показываем результат (сетку) и alert
+        kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], game["fake_triggered"], game["exploded"], None, game["finished"])
+        current_text = call.message.text
+        await call.message.edit_reply_markup(reply_markup=kb)
         await call.answer("❌ Игра завершена! 🎮", show_alert=True)
         return
     if idx in game["opened"]:
@@ -9204,7 +9212,7 @@ async def miner_cell(call: types.CallbackQuery):
         await call.answer()
         return
 
-    # === 2. ФАЛЬШИВАЯ МИНА (9%) ===
+    # === 2. ФАЛЬШИВАЯ МИНА (10%) ===
     if idx == game["fake_mine"]:
         if random.randint(1, RIGGED_LOSE_CHANCE_BASE) == 1:
             game["fake_triggered"] = True
@@ -9248,6 +9256,10 @@ async def miner_take(call: types.CallbackQuery):
         await call.answer("❌ Игра не найдена! 😢", show_alert=True)
         return
     if game["exploded"] or game["finished"]:
+        # Показываем результат (сетку) и alert
+        kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], game["fake_triggered"], game["exploded"], None, game["finished"])
+        current_text = call.message.text
+        await call.message.edit_reply_markup(reply_markup=kb)
         await call.answer("❌ Игра завершена! 🎮", show_alert=True)
         return
     bet = game["bet"]
@@ -9278,6 +9290,10 @@ async def miner_cancel(call: types.CallbackQuery):
         await call.answer("❌ Игра не найдена! 😢", show_alert=True)
         return
     if game["exploded"] or game["finished"]:
+        # Показываем результат (сетку) и alert
+        kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], game["fake_triggered"], game["exploded"], None, game["finished"])
+        current_text = call.message.text
+        await call.message.edit_reply_markup(reply_markup=kb)
         await call.answer("❌ Игра завершена! 🎮", show_alert=True)
         return
     bet = game["bet"]
@@ -11711,6 +11727,7 @@ def parse_bet_input(arg: str, user_money: Optional[Union[int, float, str, Decima
         return int(result)
     except Exception:
         return -1
+
 
 @dp.message(Command("gdata"))
 async def send_data_db(message: types.Message):
