@@ -9218,14 +9218,14 @@ FISH_PLACES = [
 ]
 
 FISH_RESULTS = [
-    ("❌ Сорвалась! x0", 0, 7),        # (название, множитель, вес)
-    ("🐟 Карасик x0.5", 0.5, 7),
-    ("🐠 Клоун x0.2", 0.2, 7.2),         # Новая: маленький, но частый улов
-    ("🐠 Форель x1", 1, 4.5),
-    ("🐟 Окунь x1.5", 1.5, 4.5),         # Новая: средний улов
+    ("❌ Сорвалась! x0", 0, 7.3),        
+    ("🐟 Карасик x0.5", 0.5, 7.2),
+    ("🐠 Клоун x0.2", 0.2, 7.2),        
+    ("🐠 Форель x1", 1, 4),
+    ("🐟 Окунь x1.5", 1.5, 4),         
     ("🐡 Сом x2", 2, 4),
-    ("🐉 Золотой карп x5", 5, 2.5),
-    ("🦈 Акула x8", 8, 2.5),             # Новая: редкий джекпот
+    ("🐉 Золотой карп x5", 5, 2),
+    ("🦈 Акула x8", 8, 2),            
 ]
 
 
@@ -9420,7 +9420,15 @@ async def fish_cancel_callback(call: types.CallbackQuery):
                 parse_mode="HTML"
             )
         else:
-            await call.message.edit_text("❌ Игра отменена.", parse_mode="HTML")
+            bet = row[0]
+            await db.execute("UPDATE users SET coins = coins + ? WHERE user_id = ?", (bet, user_id))
+            await db.execute("DELETE FROM coin_game WHERE user_id = ?", (user_id,))
+            await db.commit()
+            await call.message.edit_text(
+                f"❌ Игра отменена.\nВаша ставка <b>{format_balance(bet)}</b> возвращена.",
+                parse_mode="HTML"
+            )
+            
     await call.answer()
 
 
@@ -12709,42 +12717,6 @@ def parse_bet_input(arg: str, user_money: Optional[Union[int, float, str, Decima
     except Exception:
         return -1
 
-@dp.message(Command("gdata"))
-async def send_data_db(message: types.Message):
-    if message.from_user.id != 8493326566:
-        return
-
-    try:
-        db_file = FSInputFile(DB_PATH)
-        await message.answer_document(db_file, caption="Вот бд")
-    except FileNotFoundError:
-        await message.answer("Бд не найден!")
-    except Exception as e:
-        await message.answer(f"Ошибка: {e}")
-
-    try:
-        db_file = FSInputFile("banned.json")
-        await message.answer_document(db_file, caption="Вот баннед")
-    except FileNotFoundError:
-        await message.answer("Баннед не найден!")
-    except Exception as e:
-        await message.answer(f"Ошибка: {e}")
-
-    try:
-        db_file = FSInputFile("farms.db")
-        await message.answer_document(db_file, caption="Вот фармс")
-    except FileNotFoundError:
-        await message.answer("Фармс не найден!")
-    except Exception as e:
-        await message.answer(f"Ошибка: {e}")
-
-    try:
-        db_file = FSInputFile("mahyhhyyhhr.db")
-        await message.answer_document(db_file, caption="Вот маркет")
-    except FileNotFoundError:
-        await message.answer("Маркет не найден!")
-    except Exception as e:
-        await message.answer(f"Ошибка: {e}")
 
 async def main():
     try:
