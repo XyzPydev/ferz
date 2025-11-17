@@ -27,7 +27,7 @@ from aiogram.fsm.state import StatesGroup
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
-API_TOKEN = "8423747322:AAGTpxaHtDBNdzXrNzwKetCTeGDxidZ0HUg"
+API_TOKEN = "8423747322:AAGTpxaHtDBNdzXrNzwKetCTeGDxidZ0HUg" # 8449510010:AAGVyipkRgxz8xKLJX3CutrtThe6hjaGaeY
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
@@ -9235,7 +9235,7 @@ def get_fish_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-@dp.message(Command("fish"))
+#@dp.message(Command("fish"))
 async def cmd_fish(message: types.Message):
     args = message.text.split()
     if len(args) < 2:
@@ -9297,7 +9297,7 @@ async def cmd_fish(message: types.Message):
 
 
 # альтернатива — "рыбалка ставка"
-@dp.message(lambda m: m.text and m.text.lower().startswith("рыбалка"))
+#@dp.message(lambda m: m.text and m.text.lower().startswith("рыбалка"))
 async def txt_fish(message: types.Message):
     await cmd_fish(message)
 
@@ -9404,7 +9404,7 @@ async def fish_place_callback(call: types.CallbackQuery):
     await call.answer()
 
 
-@dp.callback_query(lambda c: c.data == "fish_cancel")
+#@dp.callback_query(lambda c: c.data == "fish_cancel")
 async def fish_cancel_callback(call: types.CallbackQuery):
     user_id = call.from_user.id
     async with aiosqlite.connect(DB_PATH) as db:
