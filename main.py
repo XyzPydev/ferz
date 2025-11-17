@@ -27,7 +27,7 @@ from aiogram.fsm.state import StatesGroup
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
-API_TOKEN = "8423747322:AAGTpxaHtDBNdzXrNzwKetCTeGDxidZ0HUg" # 8449510010:AAGVyipkRgxz8xKLJX3CutrtThe6hjaGaeY
+API_TOKEN = "8423747322:AAGjLwR1CtKE-CzUl5DuUoGdMq0NU0_Af04"
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
