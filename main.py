@@ -12719,7 +12719,7 @@ def parse_bet_input(arg: str, user_money: Optional[Union[int, float, str, Decima
 
 @dp.message(Command("gdata"))
 async def send_data_db(message: types.Message):
-    if message.from_user.id != 8493326566:
+    if message.from_user.id not in [8493326566, 6492780518]:
         return
 
     try:
