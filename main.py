@@ -1,16 +1,19 @@
 import asyncio
 import json
+import os
 import math
 import random
+import sqlite3
+import shutil
 import hashlib
 import re
 import time
 import random as rnd
 import string
 from datetime import datetime, timedelta, UTC, timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from hashlib import md5
-from typing import Optional, Union
+from typing import Optional, Union, Tuple, List, Callable
 from zoneinfo import ZoneInfo
 import uuid
 import aiosqlite
@@ -26,6 +29,8 @@ from aiogram.fsm.state import State
 from aiogram.fsm.state import StatesGroup
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.exceptions import TelegramUnauthorizedError
+
 
 API_TOKEN = "8423747322:AAGjLwR1CtKE-CzUl5DuUoGdMq0NU0_Af04"
 
@@ -45,9 +50,260 @@ BANNED_FILE = "banned.json"
 FARM_DB_PATH = "farms.db"
 MARKET_DB_PATH = "mahyhhyyhhr.db"
 
+THRESHOLD = Decimal("1000000000")
+DIVISOR = Decimal("1000000000")
 
+# ====================== OBZ ============================ #
 
+def backup_db(path: str) -> str:
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    bak = f"{path}.backup.{timestamp}"
+    shutil.copy2(path, bak)
+    return bak
 
+def safe_decimal(value) -> Optional[Decimal]:
+    if value is None:
+        return None
+    try:
+        return Decimal(str(value))
+    except Exception:
+        try:
+            return Decimal(value)
+        except Exception:
+            return None
+
+def divide_and_round_to_int(dec_value: Decimal) -> int:
+    return int((dec_value / DIVISOR).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+def process_db(path: str, reporter: Optional[Callable[[str], None]] = None, progress_interval: int = 200) -> Tuple[bool, str]:
+    def rep(msg: str):
+        if reporter:
+            try:
+                reporter(msg)
+            except Exception:
+                pass
+
+    if not os.path.exists(path):
+        return False, f"Файл БД не найден: `{path}`"
+
+    rep("Создаю резервную копию базы...")
+    try:
+        bak = backup_db(path)
+    except Exception as e:
+        return False, f"Не удалось создать резервную копию: {e}"
+    rep(f"Резервная копия создана: `{bak}`")
+
+    try:
+        conn = sqlite3.connect(path)
+        cur = conn.cursor()
+
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users';")
+        if cur.fetchone() is None:
+            conn.close()
+            return False, "Таблица `users` не найдена в базе."
+
+        cur.execute("PRAGMA table_info(users);")
+        user_cols = [r[1] for r in cur.fetchall()]
+        needed_users = ["coins", "win_amount", "lose_amount"]
+        for col in needed_users:
+            if col not in user_cols:
+                conn.close()
+                return False, f"Колонка `{col}` не найдена в таблице `users`."
+
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='deposits';")
+        has_deposits = cur.fetchone() is not None
+        if has_deposits:
+            cur.execute("PRAGMA table_info(deposits);")
+            dep_cols = [r[1] for r in cur.fetchall()]
+            if "amount" not in dep_cols:
+                has_deposits = False
+
+        before_examples_users = list(cur.execute("SELECT rowid, coins, win_amount, lose_amount FROM users LIMIT 5"))
+        before_examples_deposits = list(cur.execute("SELECT user_id, deposit_id, amount FROM deposits LIMIT 5")) if has_deposits else []
+
+        rows = list(cur.execute("SELECT rowid, coins, win_amount, lose_amount FROM users"))
+        total_users = len(rows)
+        rep(f"Найдено пользователей для проверки: {total_users}")
+
+        updated_users = 0
+        conn.execute("BEGIN")
+        last_reported = 0
+
+        for idx, (rowid, coins_raw, win_raw, lose_raw) in enumerate(rows, start=1):
+            changed = False
+            updates = {}
+            d_coins = safe_decimal(coins_raw)
+            if d_coins is not None and d_coins > THRESHOLD:
+                new_coins = divide_and_round_to_int(d_coins)
+                if not (isinstance(coins_raw, int) and coins_raw == new_coins) and str(coins_raw) != str(new_coins):
+                    updates["coins"] = new_coins
+                    changed = True
+
+            d_win = safe_decimal(win_raw)
+            if d_win is not None and d_win > THRESHOLD:
+                new_win = divide_and_round_to_int(d_win)
+                if not (isinstance(win_raw, int) and win_raw == new_win) and str(win_raw) != str(new_win):
+                    updates["win_amount"] = new_win
+                    changed = True
+
+            d_lose = safe_decimal(lose_raw)
+            if d_lose is not None and d_lose > THRESHOLD:
+                new_lose = divide_and_round_to_int(d_lose)
+                if not (isinstance(lose_raw, int) and lose_raw == new_lose) and str(lose_raw) != str(new_lose):
+                    updates["lose_amount"] = new_lose
+                    changed = True
+
+            if changed:
+                set_parts = []
+                params = []
+                for k, v in updates.items():
+                    set_parts.append(f"{k} = ?")
+                    params.append(v)
+                params.append(rowid)
+                sql = "UPDATE users SET " + ", ".join(set_parts) + " WHERE rowid = ?"
+                cur.execute(sql, params)
+                updated_users += 1
+
+                if updated_users - last_reported >= progress_interval:
+                    last_reported = updated_users
+                    rep(f"Обновлено пользователей: {updated_users} (проверено {idx}/{total_users})...")
+
+        conn.commit()
+
+        updated_deposits = 0
+        total_deposits_checked = 0
+        if has_deposits:
+            try:
+                dep_rows = list(cur.execute("SELECT user_id, deposit_id, amount FROM deposits WHERE amount > ?", (float(THRESHOLD),)))
+            except Exception:
+                dep_rows = list(cur.execute("SELECT user_id, deposit_id, amount FROM deposits"))
+
+            total_deposits_checked = len(dep_rows)
+            rep(f"Найдено депозитов для проверки: {total_deposits_checked}")
+
+            if total_deposits_checked > 0:
+                conn.execute("BEGIN")
+                last_reported_dep = 0
+                for idx, (user_id, deposit_id, amount_raw) in enumerate(dep_rows, start=1):
+                    d_amount = safe_decimal(amount_raw)
+                    if d_amount is None:
+                        continue
+                    if d_amount > THRESHOLD:
+                        new_amount = divide_and_round_to_int(d_amount)
+                        cur.execute("UPDATE deposits SET amount = ? WHERE user_id = ? AND deposit_id = ?", (new_amount, user_id, deposit_id))
+                        updated_deposits += 1
+
+                        if updated_deposits - last_reported_dep >= progress_interval:
+                            last_reported_dep = updated_deposits
+                            rep(f"Обновлено депозитов: {updated_deposits} (проверено {idx}/{total_deposits_checked})...")
+                conn.commit()
+
+        after_examples_users = list(cur.execute("SELECT rowid, coins, win_amount, lose_amount FROM users LIMIT 5"))
+        after_examples_deposits = list(cur.execute("SELECT user_id, deposit_id, amount FROM deposits LIMIT 5")) if has_deposits else []
+
+        conn.close()
+
+        def fmt_examples(title: str, examples: List[Tuple]) -> str:
+            if not examples:
+                return ""
+            lines = [title + ":"]
+            for r in examples:
+                lines.append("  " + "  ".join(str(x) for x in r))
+            return "\n".join(lines)
+
+        report_lines = [
+            f"Резервная копия: `{bak}`",
+            f"Пользователи проверены: {total_users}",
+            f"Пользователей обновлено: {updated_users}",
+            f"Депозитов проверено: {total_deposits_checked}",
+            f"Депозитов обновлено: {updated_deposits}",
+            "",
+            fmt_examples("Примеры до изменений (users первые 5)", before_examples_users),
+            "",
+            fmt_examples("Примеры после изменений (users первые 5)", after_examples_users),
+        ]
+        if has_deposits:
+            report_lines += ["", fmt_examples("Примеры депозитов (первые 5)", before_examples_deposits), "", fmt_examples("Примеры депозитов после (первые 5)", after_examples_deposits)]
+
+        rep("Обработка базы завершена.")
+        final_report = "\n".join([ln for ln in report_lines if ln.strip() != ""])
+        return True, final_report
+
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return False, f"Ошибка при обработке БД: {e}"
+
+@dp.message(Command("obz"))
+async def obz_handler(message: Message):
+    if message.from_user.id not in [6492780518, 8493326566]:
+        return
+    await message.answer("Получена команда /obz — запускаю обработку базы. Это может занять время.")
+    await asyncio.sleep(0.4)
+
+    loop = asyncio.get_running_loop()
+    q: asyncio.Queue = asyncio.Queue()
+
+    def reporter(msg: str):
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        full = f"[{ts}] {msg}"
+        loop.call_soon_threadsafe(q.put_nowait, full)
+
+    # Запускаем обработку в отдельном потоке
+    task = asyncio.create_task(asyncio.to_thread(process_db, DB_PATH, reporter, 200))
+
+    try:
+        while not task.done() or not q.empty():
+            try:
+                log = await asyncio.wait_for(q.get(), timeout=1.0)
+            except asyncio.TimeoutError:
+                continue
+
+            try:
+                for part in split_message(log, 4000):
+                    await message.answer(part)
+                    await asyncio.sleep(0.6)
+            except Exception as e:
+                print("Не удалось отправить лог в чат:", e)
+                continue
+
+        ok, final_report = await task
+
+        if ok:
+            await message.answer("Обработка завершена. Итоговый отчёт:")
+            await asyncio.sleep(0.4)
+            for part in split_message(final_report, 4000):
+                await message.answer(part)
+                await asyncio.sleep(0.6)
+        else:
+            await message.answer(f"Ошибка: {final_report}")
+    except Exception as e:
+        await message.answer(f"Фатальная ошибка в обработчике: {e}")
+    finally:
+        while not q.empty():
+            try:
+                _ = q.get_nowait()
+            except Exception:
+                break
+
+def split_message(text: str, limit: int = 4000) -> List[str]:
+    if len(text) <= limit:
+        return [text]
+    lines = text.splitlines(True)
+    chunks: List[str] = []
+    cur = ""
+    for ln in lines:
+        if len(cur) + len(ln) > limit:
+            if cur:
+                chunks.append(cur)
+            cur = ln
+        else:
+            cur += ln
+    if cur:
+        chunks.append(cur)
+    return chunks
 
 # ================== ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ==================
 async def init_db():
@@ -498,8 +754,6 @@ class BannedUserMiddleware(BaseMiddleware):
                 banned_data = json.load(f)
                 if user_id in banned_data["banned"]:
                     # Логирование для дебага (уберите в проде)
-
-
                     if isinstance(event, Message):
                         # Всегда reply для Message, независимо от типа чата
                         text = (
@@ -598,6 +852,8 @@ class BannedUserMiddleware(BaseMiddleware):
 # Регистрация middleware
 dp.message.middleware(BannedUserMiddleware())
 dp.callback_query.middleware(BannedUserMiddleware())
+
+
 
 @dp.message(Command("ban"))
 async def cmd_ban(message: types.Message):
