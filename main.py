@@ -32,7 +32,7 @@ from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, C
 from aiogram.exceptions import TelegramUnauthorizedError
 
 
-API_TOKEN = "8423747322:AAGjLwR1CtKE-CzUl5DuUoGdMq0NU0_Af04"
+API_TOKEN = "8423747322:AAFBYjbgOK_25zpYdYTf5CP2fxHR9842cBA"
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
@@ -11214,23 +11214,28 @@ async def cmd_roulette(message: types.Message):
         active_roulette_players.discard(user_id)
 
 
+_user_locks = {}
+import asyncio
+def get_user_lock(user_id: int) -> asyncio.Lock:
+    lock = _user_locks.get(user_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _user_locks[user_id] = lock
+    return lock
 
-# Эмодзи для мастей (простые Telegram эмодзи)
 SUITS = {
-    'hearts': '♥️',  # Красное сердце
-    'diamonds': '♦️',  # Ромб
-    'clubs': '♣️',  # Треф
-    'spades': '♠️'  # Пики
+    'hearts': '♥️',
+    'diamonds': '♦️',
+    'clubs': '♣️',
+    'spades': '♠️'
 }
 RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
 VALUES = {'A': 11, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 10, 'Q': 10, 'K': 10}
 
-# FSM для Blackjack
 class BlackjackState(StatesGroup):
-    confirming = State()  # Состояние подтверждения
+    confirming = State()
     playing = State()
 
-# Глобальные данные: user_id -> game state
 blackjack_games = {}
 
 def deal_card():
@@ -11283,7 +11288,6 @@ async def cmd_blackjack_start(message: types.Message, state: FSMContext):
     if user_money < bet:
         await message.reply(f"❌ <b>Недостаточно GG!</b>\n<i>Твой баланс: <code>{format_balance(user_money)}</code> GG. Пополни и возвращайся! 💸</i>", parse_mode="HTML")
         return
-    # Сохраняем bet в state для подтверждения
     await state.update_data(bet=bet)
     kb_confirm = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🟢 Начать игру 🎰", callback_data="bj_start_confirm")],
@@ -11304,44 +11308,55 @@ async def cmd_blackjack_start(message: types.Message, state: FSMContext):
 async def blackjack_cancel(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     bet = data.get('bet', 0)
-    if bet > 0:
-        async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute("UPDATE users SET coins = coins + ? WHERE user_id = ?", (bet, callback.from_user.id))
-            await db.commit()
     await state.clear()
-    await callback.message.edit_text(
-        f"❌ <b>Игра отменена!</b>\n\n"
-        f"<blockquote><i>Ставка <code>{format_balance(bet)}</code> GG возвращена. 😌</i></blockquote>\n"
-        "<i>💡 Попробуй снова: /blackjack <code>ставка</code> 🎰</i>",
-        parse_mode="HTML"
-    )
+    if bet and bet > 0:
+        await callback.message.edit_text(
+            f"❌ <b>Игра отменена!</b>\n\n"
+            f"<blockquote><i>Ставка <code>{format_balance(bet)}</code> GG не была списана. 😌</i></blockquote>\n"
+            "<i>💡 Попробуй снова: /blackjack <code>ставка</code> 🎰</i>",
+            parse_mode="HTML"
+        )
+    else:
+        await callback.answer("Нечего отменять.", show_alert=True)
 
 @dp.callback_query(lambda c: c.data == "bj_start_confirm")
 async def blackjack_start_game(callback: types.CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
-    data = await state.get_data()
-    bet = data.get('bet', 0)
-    # Раздача
-    player_hand = [deal_card(), deal_card()]
-    dealer_hand = [deal_card(), deal_card()]  # Вторая скрыта
-    player_value = hand_value(player_hand)
-    dealer_value = hand_value(dealer_hand)
-    is_blackjack = player_value == 21 and len(player_hand) == 2
-    player_cards = " ".join(card[0] for card in player_hand)
-    dealer_cards = f"{dealer_hand[0][0]} ❓"  # Скрытая
-    # Все DB операции в одном async with
-    async with aiosqlite.connect(DB_PATH) as db:
-        # Списываем ставку
-        await db.execute("UPDATE users SET coins = coins - ? WHERE user_id = ?", (bet, user_id))
-        await db.commit()
-        if is_blackjack:
-            # Авто-выигрыш для блэкджека: начисляем bet * 1.9
-            win_amount = int(bet * 1.9)
-            await db.execute("UPDATE users SET coins = coins + ?, win_amount = win_amount + ? WHERE user_id = ?",
-                             (win_amount, win_amount, user_id))
-            await db.commit()
+    lock = get_user_lock(user_id)
+    async with lock:
+        data = await state.get_data()
+        bet = data.get('bet', 0)
+        if not bet or bet <= 0:
+            await callback.answer("Ставка не найдена или уже подтверждена.", show_alert=True)
+            return
+        async with aiosqlite.connect(DB_PATH) as db:
             cursor = await db.execute("SELECT coins FROM users WHERE user_id = ?", (user_id,))
-            new_balance = (await cursor.fetchone())[0]
+            row = await cursor.fetchone()
+            current_coins = row[0] if row else 0
+            if current_coins < bet:
+                await state.clear()
+                await callback.message.edit_text(
+                    "❌ <b>Недостаточно GG!</b>\n<i>Ставка не прошла — пополни баланс и попробуй снова.</i>",
+                    parse_mode="HTML"
+                )
+                return
+            await db.execute("UPDATE users SET coins = coins - ? WHERE user_id = ?", (bet, user_id))
+            await db.commit()
+        player_hand = [deal_card(), deal_card()]
+        dealer_hand = [deal_card(), deal_card()]
+        player_value = hand_value(player_hand)
+        dealer_value = hand_value(dealer_hand)
+        is_blackjack = player_value == 21 and len(player_hand) == 2
+        player_cards = " ".join(card[0] for card in player_hand)
+        dealer_cards = f"{dealer_hand[0][0]} ❓"
+        if is_blackjack:
+            win_amount = int(bet * 1.9)
+            async with aiosqlite.connect(DB_PATH) as db:
+                await db.execute("UPDATE users SET coins = coins + ?, win_amount = win_amount + ? WHERE user_id = ?",
+                                 (win_amount, win_amount, user_id))
+                await db.commit()
+                cursor = await db.execute("SELECT coins FROM users WHERE user_id = ?", (user_id,))
+                new_balance = (await cursor.fetchone())[0]
             dealer_full_cards = " ".join(card[0] for card in dealer_hand)
             await callback.message.edit_text(
                 f"<b>🃏 <i>Блэкджек! 🎉</i></b>\n"
@@ -11356,213 +11371,194 @@ async def blackjack_start_game(callback: types.CallbackQuery, state: FSMContext)
             )
             await state.clear()
             return
-        else:
-            # Просто списали ставку
-            await db.commit()
-    # Получаем баланс для проверки дабл
-    current_balance = await get_user_balance(user_id)
-    can_double = current_balance >= bet
-    # Сохраняем игру
-    blackjack_games[user_id] = {
-        'player_hand': player_hand, 'dealer_hand': dealer_hand,
-        'player_value': player_value, 'dealer_value': dealer_value,
-        'bet': bet, 'doubled': False
-    }
-    # Формируем kb
-    inline_keyboard = [
-        [
-            InlineKeyboardButton(text="🃏 Еще", callback_data="bj_hit"),
-            InlineKeyboardButton(text="Стоп 🛑", callback_data="bj_stand")
+        blackjack_games[user_id] = {
+            'player_hand': player_hand, 'dealer_hand': dealer_hand,
+            'player_value': player_value, 'dealer_value': dealer_value,
+            'bet': bet, 'doubled': False
+        }
+        await state.clear()
+        current_balance = await get_user_balance(user_id)
+        can_double = current_balance >= bet
+        inline_keyboard = [
+            [
+                InlineKeyboardButton(text="🃏 Еще", callback_data="bj_hit"),
+                InlineKeyboardButton(text="Стоп 🛑", callback_data="bj_stand")
+            ]
         ]
-    ]
-    if can_double:
-        inline_keyboard.append([InlineKeyboardButton(text="Дабл 💥", callback_data="bj_double")])
-    kb = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
-    await callback.message.edit_text(
-        f"<b>🃏 <i>Раздача! 🎴</i></b>\n"
-        f"<blockquote><i>🎯 Добирай до 21, но осторожно — перебор = проигрыш! 😈</i></blockquote>\n"
-        f"💰 <b>Ставка:</b> <code>{format_balance(bet)}</code> GG\n\n"
-        f"<b>🤖 Дилер:</b>\n"
-        f"<blockquote>{dealer_cards} (скрытая карта ❓)</blockquote>\n"
-        f"👤 <b>Твои карты:</b>\n"
-        f"<blockquote>{player_cards} (<code>{player_value}</code> очков)</blockquote>\n\n"
-        "<i>💡 <b>Твой ход:</b> Взять карту, стоп или дабл? Выбирай!</i>",
-        reply_markup=kb, parse_mode="HTML"
-    )
+        if can_double:
+            inline_keyboard.append([InlineKeyboardButton(text="Дабл 💥", callback_data="bj_double")])
+        kb = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+        await callback.message.edit_text(
+            f"<b>🃏 <i>Раздача! 🎴</i></b>\n"
+            f"<blockquote><i>🎯 Добирай до 21, но осторожно — перебор = проигрыш! 😈</i></blockquote>\n"
+            f"💰 <b>Ставка:</b> <code>{format_balance(bet)}</code> GG\n\n"
+            f"<b>🤖 Дилер:</b>\n"
+            f"<blockquote>{dealer_cards} (скрытая карта ❓)</blockquote>\n"
+            f"👤 <b>Твои карты:</b>\n"
+            f"<blockquote>{player_cards} (<code>{player_value}</code> очков)</blockquote>\n\n"
+            "<i>💡 <b>Твой ход:</b> Взять карту, стоп или дабл? Выбирай!</i>",
+            reply_markup=kb, parse_mode="HTML"
+        )
     await state.set_state(BlackjackState.playing)
 
 @dp.callback_query(lambda c: c.data.startswith("bj_") and c.data != "bj_start_confirm" and c.data != "bj_cancel")
 async def blackjack_play(callback: types.CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
-    if user_id not in blackjack_games:
-        return
-    game = blackjack_games[user_id]
-    player_value = game['player_value']
-    bet = game['bet']
-    doubled = game['doubled']
-    action = callback.data.split("_")[1]
-    is_blackjack = player_value == 21 and len(game['player_hand']) == 2
-    if action == "hit":
-        new_card, rank = deal_card()
-        game['player_hand'].append((new_card, rank))
-        player_value = hand_value(game['player_hand'])
-        game['player_value'] = player_value
-        if player_value > 21:
-            # Перебор: все DB в одном with
+    lock = get_user_lock(user_id)
+    async with lock:
+        if user_id not in blackjack_games:
+            return
+        game = blackjack_games[user_id]
+        player_value = game['player_value']
+        bet = game['bet']
+        doubled = game['doubled']
+        action = callback.data.split("_")[1]
+        is_blackjack = player_value == 21 and len(game['player_hand']) == 2
+        if action == "hit":
+            new_card, rank = deal_card()
+            game['player_hand'].append((new_card, rank))
+            player_value = hand_value(game['player_hand'])
+            game['player_value'] = player_value
+            if player_value > 21:
+                async with aiosqlite.connect(DB_PATH) as db:
+                    await db.execute("UPDATE users SET lose_amount = lose_amount + ? WHERE user_id = ?", (bet, user_id))
+                    await db.commit()
+                    cursor = await db.execute("SELECT coins FROM users WHERE user_id = ?", (user_id,))
+                    new_balance = (await cursor.fetchone())[0]
+                dealer_hand = game['dealer_hand']
+                dealer_value = hand_value(dealer_hand)
+                dealer_full_cards = " ".join(card[0] for card in dealer_hand)
+                player_cards = " ".join(card[0] for card in game['player_hand'])
+                del blackjack_games[user_id]
+                await state.clear()
+                await callback.message.edit_text(
+                    f"<b>🃏 <i>Перебор! 💥</i></b>\n"
+                    f"<i>😵 Твои карты перевалили за 21 — дилер смеётся! 😂</i>\n"
+                    f"<b>🤖 Дилер:</b>\n"
+                    f"<blockquote>{dealer_full_cards} (<code>{dealer_value}</code> очков)</blockquote>\n"
+                    f"👤 <b>Твои карты:</b>\n"
+                    f"<blockquote>{player_cards} (<code>{player_value}</code> >21)</blockquote>\n\n"
+                    f"😔 <b>Проиграно:</b> <code>{format_balance(bet)}</code> GG 💸\n"
+                    f"💰 <b>Баланс:</b> <code>{format_balance(new_balance)}</code> GG 💎",
+                    parse_mode="HTML"
+                )
+                return
+            else:
+                player_cards = " ".join(card[0] for card in game['player_hand'])
+                dealer_cards = f"{game['dealer_hand'][0][0]} ❓"
+                current_balance = await get_user_balance(user_id)
+                can_double = current_balance >= bet and not doubled
+                inline_keyboard = [
+                    [
+                        InlineKeyboardButton(text="🃏 Еще", callback_data="bj_hit"),
+                        InlineKeyboardButton(text="Стоп 🛑", callback_data="bj_stand")
+                    ]
+                ]
+                if can_double:
+                    inline_keyboard.append([InlineKeyboardButton(text="Дабл 💥", callback_data="bj_double")])
+                kb = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+                await callback.message.edit_text(
+                    f"<b>🃏 <i>Раздача! 🎴</i></b>\n"
+                    f"<blockquote><i>🎯 Добирай до 21, но осторожно — перебор = проигрыш! 😈</i></blockquote>\n"
+                    f"💰 <b>Ставка:</b> <code>{format_balance(bet)}</code> GG\n\n"
+                    f"<b>🤖 Дилер:</b>\n"
+                    f"<blockquote>{dealer_cards} (скрытая карта ❓)</blockquote>\n"
+                    f"👤 <b>Твои карты:</b>\n"
+                    f"<blockquote>{player_cards} (<code>{player_value}</code> очков)</blockquote>\n\n"
+                    "<i>💡 <b>Твой ход:</b> Взять карту, стоп или дабл? Выбирай!</i>",
+                    reply_markup=kb, parse_mode="HTML"
+                )
+                return
+        elif action == "double":
+            if doubled:
+                return
+            current_balance = await get_user_balance(user_id)
+            if current_balance < bet:
+                return
+            doubled_bet = bet
             async with aiosqlite.connect(DB_PATH) as db:
-                await db.execute("UPDATE users SET lose_amount = lose_amount + ? WHERE user_id = ?", (bet, user_id))
+                await db.execute("UPDATE users SET coins = coins - ? WHERE user_id = ?", (doubled_bet, user_id))
+                await db.commit()
+            game['bet'] = bet * 2
+            bet = game['bet']
+            game['doubled'] = True
+            new_card, rank = deal_card()
+            game['player_hand'].append((new_card, rank))
+            player_value = hand_value(game['player_hand'])
+            game['player_value'] = player_value
+            if player_value > 21:
+                async with aiosqlite.connect(DB_PATH) as db:
+                    await db.execute("UPDATE users SET lose_amount = lose_amount + ? WHERE user_id = ?", (bet, user_id))
+                    await db.commit()
+                    cursor = await db.execute("SELECT coins FROM users WHERE user_id = ?", (user_id,))
+                    new_balance = (await cursor.fetchone())[0]
+                dealer_hand = game['dealer_hand']
+                dealer_value = hand_value(dealer_hand)
+                dealer_full_cards = " ".join(card[0] for card in dealer_hand)
+                player_cards = " ".join(card[0] for card in game['player_hand'])
+                del blackjack_games[user_id]
+                await state.clear()
+                await callback.message.edit_text(
+                    f"<b>🃏 <i>Перебор после Дабл! 💥</i></b>\n"
+                    f"<i>😵 Удвоил и перебрал — риск не удался! 😂</i>\n"
+                    f"<b>🤖 Дилер:</b>\n"
+                    f"<blockquote>{dealer_full_cards} (<code>{dealer_value}</code> очков)</blockquote>\n"
+                    f"👤 <b>Твои карты:</b>\n"
+                    f"<blockquote>{player_cards} (<code>{player_value}</code> >21)</blockquote>\n\n"
+                    f"😔 <b>Проиграно:</b> <code>{format_balance(bet)}</code> GG 💸\n"
+                    f"💰 <b>Баланс:</b> <code>{format_balance(new_balance)}</code> GG 💎",
+                    parse_mode="HTML"
+                )
+                return
+            else:
+                action = "stand"
+        if action == "stand":
+            dealer_hand = game['dealer_hand']
+            dealer_value = hand_value(dealer_hand)
+            while dealer_value < 17:
+                new_card, rank = deal_card()
+                dealer_hand.append((new_card, rank))
+                dealer_value = hand_value(dealer_hand)
+            player_win = False
+            payout = 0
+            if player_value > 21:
+                payout = 0
+            elif dealer_value > 21 or player_value > dealer_value:
+                payout = int(bet * 1.9)
+                player_win = True
+            elif player_value == dealer_value:
+                payout = bet
+                player_win = False
+            else:
+                payout = 0
+            async with aiosqlite.connect(DB_PATH) as db:
+                await db.execute("UPDATE users SET coins = coins + ? WHERE user_id = ?", (payout, user_id))
+                if player_win:
+                    await db.execute("UPDATE users SET win_amount = win_amount + ? WHERE user_id = ?", (payout, user_id))
                 await db.commit()
                 cursor = await db.execute("SELECT coins FROM users WHERE user_id = ?", (user_id,))
                 new_balance = (await cursor.fetchone())[0]
-            # Раскрываем карты дилера
-            dealer_hand = game['dealer_hand']
-            dealer_value = hand_value(dealer_hand)
-            dealer_full_cards = " ".join(card[0] for card in dealer_hand)
-            player_cards = " ".join(card[0] for card in game['player_hand'])
             del blackjack_games[user_id]
             await state.clear()
-            await callback.message.edit_text(
-                f"<b>🃏 <i>Перебор! 💥</i></b>\n"
-                f"<i>😵 Твои карты перевалили за 21 — дилер смеётся! 😂</i>\n"
-                f"<b>🤖 Дилер:</b>\n"
-                f"<blockquote>{dealer_full_cards} (<code>{dealer_value}</code> очков)</blockquote>\n"
-                f"👤 <b>Твои карты:</b>\n"
-                f"<blockquote>{player_cards} (<code>{player_value}</code> >21)</blockquote>\n\n"
-                f"😔 <b>Проиграно:</b> <code>{format_balance(bet)}</code> GG 💸\n"
-                f"💰 <b>Баланс:</b> <code>{format_balance(new_balance)}</code> GG 💎",
-                parse_mode="HTML"
-            )
-            return
-        else:
-            # Обновляем сообщение с новой рукой, кнопки остаются
             player_cards = " ".join(card[0] for card in game['player_hand'])
-            dealer_cards = f"{game['dealer_hand'][0][0]} ❓"
-            # Получаем баланс для проверки дабл
-            current_balance = await get_user_balance(user_id)
-            can_double = current_balance >= bet and not doubled
-            # Формируем kb
-            inline_keyboard = [
-                [
-                    InlineKeyboardButton(text="🃏 Еще", callback_data="bj_hit"),
-                    InlineKeyboardButton(text="Стоп 🛑", callback_data="bj_stand")
-                ]
-            ]
-            if can_double:
-                inline_keyboard.append([InlineKeyboardButton(text="Дабл 💥", callback_data="bj_double")])
-            kb = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+            dealer_cards = " ".join(card[0] for card in dealer_hand)
+            if player_win:
+                result = f"🎉 <b>Выиграно x1.9!</b> <code>{format_balance(payout)}</code> GG 🏆"
+            elif payout == bet:
+                result = f"🤝 <b>Ничья!</b> Ставка <code>{format_balance(payout)}</code> GG возвращена 😌"
+            else:
+                result = f"😔 <b>Проиграно:</b> <code>{format_balance(bet)}</code> GG 💸"
             await callback.message.edit_text(
-                f"<b>🃏 <i>Раздача! 🎴</i></b>\n"
-                f"<blockquote><i>🎯 Добирай до 21, но осторожно — перебор = проигрыш! 😈</i></blockquote>\n"
-                f"💰 <b>Ставка:</b> <code>{format_balance(bet)}</code> GG\n\n"
+                f"<b>🃏 <i>Результат раунда!</i></b>\n\n"
+                f"<i>{'🌟 Победа! Ты обыграл дилера! 👑' if player_win else '😈 Дилер взял верх... Но следующий раз твой! 🔥'}</i>\n"
                 f"<b>🤖 Дилер:</b>\n"
-                f"<blockquote>{dealer_cards} (скрытая карта ❓)</blockquote>\n"
+                f"<blockquote>{dealer_cards} (<code>{dealer_value}</code> очков)</blockquote>\n"
                 f"👤 <b>Твои карты:</b>\n"
                 f"<blockquote>{player_cards} (<code>{player_value}</code> очков)</blockquote>\n\n"
-                "<i>💡 <b>Твой ход:</b> Взять карту, стоп или дабл? Выбирай!</i>",
-                reply_markup=kb, parse_mode="HTML"
-            )
-            return  # Возвращаемся, чтобы игрок мог взять ещё
-    elif action == "double":
-        if doubled:
-            return
-        # Проверяем баланс перед удвоением
-        current_balance = await get_user_balance(user_id)
-        if current_balance < bet:
-            return
-        # Удваиваем bet и списываем доп. bet
-        doubled_bet = bet  # доп. списание
-        async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute("UPDATE users SET coins = coins - ? WHERE user_id = ?", (doubled_bet, user_id))
-            await db.commit()
-        game['bet'] = bet * 2  # новая bet
-        bet = game['bet']  # обновляем
-        game['doubled'] = True
-        new_card, rank = deal_card()
-        game['player_hand'].append((new_card, rank))
-        player_value = hand_value(game['player_hand'])
-        game['player_value'] = player_value
-        if player_value > 21:
-            # Перебор после дабл: все DB в одном with
-            async with aiosqlite.connect(DB_PATH) as db:
-                await db.execute("UPDATE users SET lose_amount = lose_amount + ? WHERE user_id = ?", (bet, user_id))
-                await db.commit()
-                cursor = await db.execute("SELECT coins FROM users WHERE user_id = ?", (user_id,))
-                new_balance = (await cursor.fetchone())[0]
-            # Раскрываем карты дилера
-            dealer_hand = game['dealer_hand']
-            dealer_value = hand_value(dealer_hand)
-            dealer_full_cards = " ".join(card[0] for card in dealer_hand)
-            player_cards = " ".join(card[0] for card in game['player_hand'])
-            del blackjack_games[user_id]
-            await state.clear()
-            await callback.message.edit_text(
-                f"<b>🃏 <i>Перебор после Дабл! 💥</i></b>\n"
-                f"<i>😵 Удвоил и перебрал — риск не удался! 😂</i>\n"
-                f"<b>🤖 Дилер:</b>\n"
-                f"<blockquote>{dealer_full_cards} (<code>{dealer_value}</code> очков)</blockquote>\n"
-                f"👤 <b>Твои карты:</b>\n"
-                f"<blockquote>{player_cards} (<code>{player_value}</code> >21)</blockquote>\n\n"
-                f"😔 <b>Проиграно:</b> <code>{format_balance(bet)}</code> GG 💸\n"
-                f"💰 <b>Баланс:</b> <code>{format_balance(new_balance)}</code> GG 💎",
+                f"{result}\n"
+                f"💰 <b>Баланс:</b> <code>{format_balance(new_balance)}</code> GG 💎\n\n",
                 parse_mode="HTML"
             )
-            return
-        else:
-            # Обновляем сообщение после дабл (авто-стоп)
-            action = "stand"  # Переходим к стопу
-    # Стоп (или после хит/дабл)
-    # Дилер добирает
-    dealer_hand = game['dealer_hand']
-    dealer_value = hand_value(dealer_hand)
-    while dealer_value < 17:
-        new_card, rank = deal_card()
-        dealer_hand.append((new_card, rank))
-        dealer_value = hand_value(dealer_hand)
-    # Результат
-    player_win = False
-    payout = 0
-    if player_value > 21:
-        payout = 0
-    elif dealer_value > 21 or player_value > dealer_value:
-        payout = int(bet * 1.9)  # Выигрыш: bet * 1.9
-        player_win = True
-    elif player_value == dealer_value:
-        payout = bet  # Ничья: возврат bet
-        player_win = False
-    else:
-        payout = 0  # Проигрыш: 0
-    # Бонус для блэкджека (но только если на 2 картах, что уже проверено на старте)
-    # Все DB в одном with
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("UPDATE users SET coins = coins + ? WHERE user_id = ?", (payout, user_id))
-        if player_win:
-            await db.execute("UPDATE users SET win_amount = win_amount + ? WHERE user_id = ?", (payout, user_id))
-        await db.commit()
-        cursor = await db.execute("SELECT coins FROM users WHERE user_id = ?", (user_id,))
-        new_balance = (await cursor.fetchone())[0]
-    del blackjack_games[user_id]
-    await state.clear()
-    player_cards = " ".join(card[0] for card in game['player_hand'])
-    dealer_cards = " ".join(card[0] for card in dealer_hand)  # Всегда все карты дилера
-    # Блок текста result
-    if player_win:
-        result = f"🎉 <b>Выиграно x1.9!</b> <code>{format_balance(payout)}</code> GG 🏆"
-    elif payout == bet:  # Ничья
-        result = f"🤝 <b>Ничья!</b> Ставка <code>{format_balance(payout)}</code> GG возвращена 😌"
-    else:  # Проигрыш
-        result = f"😔 <b>Проиграно:</b> <code>{format_balance(bet)}</code> GG 💸"
-    await callback.message.edit_text(
-        f"<b>🃏 <i>Результат раунда!</i></b>\n\n"
-        f"<i>{'🌟 Победа! Ты обыграл дилера! 👑' if player_win else '😈 Дилер взял верх... Но следующий раз твой! 🔥'}</i>\n"
-        f"<b>🤖 Дилер:</b>\n"
-        f"<blockquote>{dealer_cards} (<code>{dealer_value}</code> очков)</blockquote>\n"
-        f"👤 <b>Твои карты:</b>\n"
-        f"<blockquote>{player_cards} (<code>{player_value}</code> очков)</blockquote>\n\n"
-        f"{result}\n"
-        f"💰 <b>Баланс:</b> <code>{format_balance(new_balance)}</code> GG 💎\n\n",
-        parse_mode="HTML"
-    )
-
 
 # =================================== БАНК ===========================
 
