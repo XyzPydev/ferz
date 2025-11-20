@@ -9707,10 +9707,39 @@ MINER_MULTIPLIERS = {
     9: [1.00, 1.38, 1.9, 2.64, 3.66, 5.16, 7.42, 10.92, 16.38, 25.07, 39.36, 63.78, 106.3, 185.83, 351.82, 760.54,
         1901.34, 5704.02, 22816.08]
 }
-active_miner_games = {}
+
+# Словарь активных игр {game_id: game_dict}
+active_miner_games: Dict[str, Dict] = {}
+
+# --- Блок замков и rate-limit ---
+game_locks: Dict[str, asyncio.Lock] = {}     # замки по game_id
+user_start_timestamps: Dict[int, float] = {}  # для лимита запуска /miner по пользователю
+USER_MINER_START_COOLDOWN = 1.0  # секунда между /miner для одного пользователя (можно увеличить)
 
 
-def get_miner_keyboard(game_id: str, opened: list[int], real_mines: list[int], fake_mine: int = None,
+def get_game_lock(game_id: str) -> asyncio.Lock:
+    """Возвращает asyncio.Lock для данного game_id, создаёт если нужно."""
+    lock = game_locks.get(game_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        game_locks[game_id] = lock
+    return lock
+
+
+async def acquire_lock_with_timeout(lock: asyncio.Lock, timeout: float = 3.0) -> bool:
+    """
+    Пытается захватить lock с таймаутом. Возвращает True если захватили, False если нет.
+    Используем asyncio.wait_for(lock.acquire()) внутри.
+    """
+    try:
+        await asyncio.wait_for(lock.acquire(), timeout=timeout)
+        return True
+    except asyncio.TimeoutError:
+        return False
+
+
+# --- UI / клавиатура ---
+def get_miner_keyboard(game_id: str, opened: List[int], real_mines: List[int], fake_mine: int = None,
                        fake_triggered: bool = False, exploded=False, last_index=None, finished=False):
     """Generate the Miner game keyboard (5x5 grid)."""
     buttons = []
@@ -9750,10 +9779,21 @@ def get_miner_keyboard(game_id: str, opened: list[int], real_mines: list[int], f
     return InlineKeyboardMarkup(inline_keyboard=kb)
 
 
+# --- Хендлер на /miner ---
 @dp.message(Command("miner"))
 async def cmd_miner(message: types.Message):
     """Start a new Miner game with specified bet and optional mine count."""
+    user_id = message.from_user.id
     args = message.text.split()
+
+    # Простая защита от частых вызовов команды
+    last = user_start_timestamps.get(user_id, 0)
+    now = time.time()
+    if now - last < USER_MINER_START_COOLDOWN:
+        await message.reply("⏳ Пожалуйста, не спамьте командой. Подождите чуть-чуть и попробуйте снова.")
+        return
+    user_start_timestamps[user_id] = now
+
     if len(args) < 2:
         await message.reply(
             "💣 <b>Минёр: Испытай удачу!</b> 💣\n\n"
@@ -9769,7 +9809,7 @@ async def cmd_miner(message: types.Message):
             parse_mode="HTML"
         )
         return
-    user_id = message.from_user.id
+
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute("SELECT coins FROM users WHERE user_id = ?", (user_id,))
         row = await cursor.fetchone()
@@ -9778,6 +9818,7 @@ async def cmd_miner(message: types.Message):
                                 parse_mode="HTML")
             return
         coins = row[0]
+
     # Validate bet
     bet = parse_bet_input(args[1], coins)
     if bet < 10:
@@ -9786,6 +9827,7 @@ async def cmd_miner(message: types.Message):
     if coins < bet:
         await message.reply("❌ <b>Недостаточно монет!</b> 😢 Проверьте баланс и попробуйте снова.", parse_mode="HTML")
         return
+
     # Validate number of mines (default to 3)
     num_mines = 3
     if len(args) >= 3:
@@ -9798,6 +9840,13 @@ async def cmd_miner(message: types.Message):
         except ValueError:
             await message.reply("❌ <b>Ошибка:</b> Укажите <i>число мин</i> от 3 до 9! 🔢", parse_mode="HTML")
             return
+
+    # Проверяем, есть ли у пользователя уже активная игра (одна игра на пользователя)
+    for g_id, g in list(active_miner_games.items()):
+        if g.get("user_id") == user_id and not (g.get("exploded") or g.get("finished")):
+            await message.reply("🔁 У вас уже есть активная игра. Закончите её перед созданием новой.")
+            return
+
     # === ЛОГИКА: num_mines реальных + 1 фальшивая ===
     real_mines_count = num_mines
     all_positions = list(range(25))
@@ -9818,10 +9867,12 @@ async def cmd_miner(message: types.Message):
         "finished": False
     }
     active_miner_games[game_id] = game
-    # Deduct bet
+
+    # Deduct bet (обновление баланса) — это критическая операция, но в cmd_miner пока она выполняется последовательно
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE users SET coins = coins - ? WHERE user_id = ?", (bet, user_id))
         await db.commit()
+
     # Send game start message
     kb = get_miner_keyboard(game_id, [], real_mines, fake_mine)
     await message.reply(
@@ -9840,149 +9891,219 @@ async def txt_miner(message: types.Message):
     await cmd_miner(message)
 
 
+# --- Обработчики callback-ов с защитой замком ---
+
 @dp.callback_query(lambda c: c.data.startswith("miner_cell"))
 async def miner_cell(call: types.CallbackQuery):
     """Handle cell opening in Miner game."""
-    _, game_id, idx = call.data.split(":")
-    idx = int(idx)
+    try:
+        _, game_id, idx = call.data.split(":")
+        idx = int(idx)
+    except Exception:
+        await call.answer("❌ Некорректные данные.", show_alert=True)
+        return
+
     game = active_miner_games.get(game_id)
     if not game or game["user_id"] != call.from_user.id:
         await call.answer("❌ Игра не найдена! 😢", show_alert=True)
         return
-    if game["exploded"] or game["finished"]:
-        # Показываем результат (сетку) и alert
-        kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], game["fake_triggered"], game["exploded"], None, game["finished"])
-        current_text = call.message.text
-        await call.message.edit_reply_markup(reply_markup=kb)
-        await call.answer("❌ Игра завершена! 🎮", show_alert=True)
-        return
-    if idx in game["opened"]:
-        await call.answer("🌀 Эта клетка уже открыта! 🔁")
-        return
-    bet = game["bet"]
-    num_mines = game["num_mines"]
-    user_id = call.from_user.id
-    # === 1. РЕАЛЬНАЯ МИНА ===
-    if idx in game["real_mines"]:
-        game["exploded"] = True
-        async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute("UPDATE users SET lose_amount = lose_amount + ? WHERE user_id = ?", (bet, user_id))
-            await db.commit()
-        kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], False, True, idx)
-        await call.message.edit_text(
-            f"💥 <b>БАМ! Вы попали на мину!</b> 😢\n"
-            f"💰 <b>Ставка:</b> <code>{format_balance(bet)}</code>\n"
-            f"<i>Игра окончена. Попробуйте снова!</i> 🔁",
-            reply_markup=kb,
-            parse_mode="HTML"
-        )
-        del active_miner_games[game_id]
-        await call.answer()
+
+    # Получаем lock и пытаемся его захватить
+    lock = get_game_lock(game_id)
+    acquired = await acquire_lock_with_timeout(lock, timeout=2.0)
+    if not acquired:
+        # Кто-то уже обрабатывает — защищаем от спама/дублей
+        await call.answer("⏳ Обработка... пожалуйста, не спамьте кнопки.", show_alert=True)
         return
 
-    # === 2. ФАЛЬШИВАЯ МИНА (10%) ===
-    if idx == game["fake_mine"]:
-        if random.randint(1, RIGGED_LOSE_CHANCE_BASE) == 1:
-            game["fake_triggered"] = True
+    try:
+        # Всё ещё проверяем текущее состояние — могло измениться
+        if game["exploded"] or game["finished"]:
+            kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"],
+                                    game["fake_triggered"], game["exploded"], None, game["finished"])
+            await call.message.edit_reply_markup(reply_markup=kb)
+            await call.answer("❌ Игра завершена! 🎮", show_alert=True)
+            return
+
+        if idx in game["opened"]:
+            await call.answer("🌀 Эта клетка уже открыта! 🔁")
+            return
+
+        bet = game["bet"]
+        num_mines = game["num_mines"]
+        user_id = call.from_user.id
+
+        # === 1. РЕАЛЬНАЯ МИНА ===
+        if idx in game["real_mines"]:
             game["exploded"] = True
             async with aiosqlite.connect(DB_PATH) as db:
                 await db.execute("UPDATE users SET lose_amount = lose_amount + ? WHERE user_id = ?", (bet, user_id))
                 await db.commit()
-            kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], True, True, idx)
+            kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], False, True, idx)
             await call.message.edit_text(
-                f"💥 <b>Ох, не повезло!</b> 😈 Клетка оказалась миной!\n"
+                f"💥 <b>БАМ! Вы попали на мину!</b> 😢\n"
                 f"💰 <b>Ставка:</b> <code>{format_balance(bet)}</code>\n"
-                f"<i>Игра завершена. Удача отвернулась!</i> 😢",
+                f"<i>Игра окончена. Попробуйте снова!</i> 🔁",
                 reply_markup=kb,
                 parse_mode="HTML"
             )
-            del active_miner_games[game_id]
+            # Удаляем игру
+            active_miner_games.pop(game_id, None)
             await call.answer()
             return
 
-    # === 3. БЕЗОПАСНАЯ КЛЕТКА ===
-    game["opened"].append(idx)
-    game["mult"] = MINER_MULTIPLIERS[num_mines][len(game["opened"])]
-    possible = int(bet * game["mult"])
-    kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"])
-    await call.message.edit_text(
-        f"✅ <b>Минёр: Успех!</b> 🎉\n\n"
-        f"🌀 <b>Открыто клеток:</b> <b>{len(game['opened'])}</b>\n"
-        f"💣 <b>Мин:</b> <b>{num_mines}</b>\n"
-        f"📈 <b>Множитель:</b> <code>{game['mult']:.2f}x</code>\n"
-        f"💰 <b>Возможный выигрыш:</b> <code>{format_balance(possible)}</code>\n"
-        f"<i>Продолжайте или забирайте приз!</i> 🚀",
-        reply_markup=kb,
-        parse_mode="HTML"
-    )
-    await call.answer()
+        # === 2. ФАЛЬШИВАЯ МИНА (10%) ===
+        if idx == game["fake_mine"]:
+            if random.randint(1, RIGGED_LOSE_CHANCE_BASE) == 1:
+                game["fake_triggered"] = True
+                game["exploded"] = True
+                async with aiosqlite.connect(DB_PATH) as db:
+                    await db.execute("UPDATE users SET lose_amount = lose_amount + ? WHERE user_id = ?", (bet, user_id))
+                    await db.commit()
+                kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], True, True, idx)
+                await call.message.edit_text(
+                    f"💥 <b>Ох, не повезло!</b> 😈 Клетка оказалась миной!\n"
+                    f"💰 <b>Ставка:</b> <code>{format_balance(bet)}</code>\n"
+                    f"<i>Игра завершена. Удача отвернулась!</i> 😢",
+                    reply_markup=kb,
+                    parse_mode="HTML"
+                )
+                active_miner_games.pop(game_id, None)
+                await call.answer()
+                return
+
+        # === 3. БЕЗОПАСНАЯ КЛЕТКА ===
+        game["opened"].append(idx)
+        # защита индекса: если вдруг len(opened) выходит за границы множителей
+        opened_count = len(game["opened"])
+        multipliers = MINER_MULTIPLIERS.get(num_mines, MINER_MULTIPLIERS[3])
+        if opened_count < len(multipliers):
+            game["mult"] = multipliers[opened_count]
+        else:
+            game["mult"] = multipliers[-1]
+        possible = int(bet * game["mult"])
+        kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"])
+        await call.message.edit_text(
+            f"✅ <b>Минёр: Успех!</b> 🎉\n\n"
+            f"🌀 <b>Открыто клеток:</b> <b>{len(game['opened'])}</b>\n"
+            f"💣 <b>Мин:</b> <b>{num_mines}</b>\n"
+            f"📈 <b>Множитель:</b> <code>{game['mult']:.2f}x</code>\n"
+            f"💰 <b>Возможный выигрыш:</b> <code>{format_balance(possible)}</code>\n"
+            f"<i>Продолжайте или забирайте приз!</i> 🚀",
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
+        await call.answer()
+    finally:
+        # обязательно освобождаем lock
+        try:
+            lock.release()
+        except RuntimeError:
+            # если вдруг release вызван дважды — игнорируем
+            pass
 
 
 @dp.callback_query(lambda c: c.data.startswith("miner_take"))
 async def miner_take(call: types.CallbackQuery):
     """Handle taking the prize in Miner game."""
-    _, game_id = call.data.split(":")
+    try:
+        _, game_id = call.data.split(":")
+    except Exception:
+        await call.answer("❌ Некорректные данные.", show_alert=True)
+        return
+
     game = active_miner_games.get(game_id)
     if not game or game["user_id"] != call.from_user.id:
         await call.answer("❌ Игра не найдена! 😢", show_alert=True)
         return
-    if game["exploded"] or game["finished"]:
-        # Показываем результат (сетку) и alert
-        kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], game["fake_triggered"], game["exploded"], None, game["finished"])
-        current_text = call.message.text
-        await call.message.edit_reply_markup(reply_markup=kb)
-        await call.answer("❌ Игра завершена! 🎮", show_alert=True)
+
+    lock = get_game_lock(game_id)
+    acquired = await acquire_lock_with_timeout(lock, timeout=2.0)
+    if not acquired:
+        await call.answer("⏳ Обработка... пожалуйста, не спамьте кнопки.", show_alert=True)
         return
-    bet = game["bet"]
-    win = int(bet * game["mult"])
-    user_id = call.from_user.id
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("UPDATE users SET coins = coins + ?, win_amount = win_amount + ? WHERE user_id = ?",
-                         (win, win - bet, user_id))
-        await db.commit()
-    kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], False, False, None, True)
-    await call.message.edit_text(
-        f"🏆 <b>Победа! Вы забрали приз!</b> 🏆\n"
-        f"💰 <b>Выигрыш:</b> <code>{format_balance(win)}</code>\n"
-        f"<i>Отличная игра! Попробуйте снова! 😎</i>",
-        reply_markup=kb,
-        parse_mode="HTML"
-    )
-    game["finished"] = True
-    del active_miner_games[game_id]
-    await call.answer()
+
+    try:
+        if game["exploded"] or game["finished"]:
+            kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"],
+                                    game["fake_triggered"], game["exploded"], None, game["finished"])
+            await call.message.edit_reply_markup(reply_markup=kb)
+            await call.answer("❌ Игра завершена! 🎮", show_alert=True)
+            return
+
+        bet = game["bet"]
+        win = int(bet * game["mult"])
+        user_id = call.from_user.id
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("UPDATE users SET coins = coins + ?, win_amount = win_amount + ? WHERE user_id = ?",
+                             (win, win - bet, user_id))
+            await db.commit()
+        kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], False, False, None, True)
+        await call.message.edit_text(
+            f"🏆 <b>Победа! Вы забрали приз!</b> 🏆\n"
+            f"💰 <b>Выигрыш:</b> <code>{format_balance(win)}</code>\n"
+            f"<i>Отличная игра! Попробуйте снова! 😎</i>",
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
+        game["finished"] = True
+        active_miner_games.pop(game_id, None)
+        await call.answer()
+    finally:
+        try:
+            lock.release()
+        except RuntimeError:
+            pass
 
 
 @dp.callback_query(lambda c: c.data.startswith("miner_cancel"))
 async def miner_cancel(call: types.CallbackQuery):
     """Cancel the Miner game and refund the bet."""
-    _, game_id = call.data.split(":")
+    try:
+        _, game_id = call.data.split(":")
+    except Exception:
+        await call.answer("❌ Некорректные данные.", show_alert=True)
+        return
+
     game = active_miner_games.get(game_id)
     if not game or game["user_id"] != call.from_user.id:
         await call.answer("❌ Игра не найдена! 😢", show_alert=True)
         return
-    if game["exploded"] or game["finished"]:
-        # Показываем результат (сетку) и alert
-        kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], game["fake_triggered"], game["exploded"], None, game["finished"])
-        current_text = call.message.text
-        await call.message.edit_reply_markup(reply_markup=kb)
-        await call.answer("❌ Игра завершена! 🎮", show_alert=True)
+
+    lock = get_game_lock(game_id)
+    acquired = await acquire_lock_with_timeout(lock, timeout=2.0)
+    if not acquired:
+        await call.answer("⏳ Обработка... пожалуйста, не спамьте кнопки.", show_alert=True)
         return
-    bet = game["bet"]
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("UPDATE users SET coins = coins + ? WHERE user_id = ?", (bet, call.from_user.id))
-        await db.commit()
-    kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], False, False, None, True)
-    await call.message.edit_text(
-        f"🚫 <b>Игра отменена!</b> 😢\n"
-        f"💰 <b>Ставка возвращена:</b> <code>{format_balance(bet)}</code>\n"
-        f"<i>Попробуйте снова с новыми силами! 💪</i>",
-        reply_markup=kb,
-        parse_mode="HTML"
-    )
-    game["finished"] = True
-    del active_miner_games[game_id]
-    await call.answer()
+
+    try:
+        if game["exploded"] or game["finished"]:
+            kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"],
+                                    game["fake_triggered"], game["exploded"], None, game["finished"])
+            await call.message.edit_reply_markup(reply_markup=kb)
+            await call.answer("❌ Игра завершена! 🎮", show_alert=True)
+            return
+
+        bet = game["bet"]
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("UPDATE users SET coins = coins + ? WHERE user_id = ?", (bet, call.from_user.id))
+            await db.commit()
+        kb = get_miner_keyboard(game_id, game["opened"], game["real_mines"], game["fake_mine"], False, False, None, True)
+        await call.message.edit_text(
+            f"🚫 <b>Игра отменена!</b> 😢\n"
+            f"💰 <b>Ставка возвращена:</b> <code>{format_balance(bet)}</code>\n"
+            f"<i>Попробуйте снова с новыми силами! 💪</i>",
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
+        game["finished"] = True
+        active_miner_games.pop(game_id, None)
+        await call.answer()
+    finally:
+        try:
+            lock.release()
+        except RuntimeError:
+            pass
 # =================================== БАШНЯ ===========================
 # Предполагается, что DB_PATH и format_balance определены где-то в коде
 # Множители для игры "Башня"
