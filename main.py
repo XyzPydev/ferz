@@ -32,7 +32,7 @@ from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, C
 from aiogram.exceptions import TelegramUnauthorizedError
 
 
-API_TOKEN = "8423747322:AAFBYjbgOK_25zpYdYTf5CP2fxHR9842cBA"
+API_TOKEN = "8423747322:AAFO_av92_J3x7teWdGVO6pfeq9D9PznOcA"
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
