@@ -13,7 +13,7 @@ import string
 from datetime import datetime, timedelta, UTC, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from hashlib import md5
-from typing import Optional, Union, Tuple, List, Callable
+from typing import Optional, Union, Tuple, List, Callable, Dict
 from zoneinfo import ZoneInfo
 import uuid
 import aiosqlite
